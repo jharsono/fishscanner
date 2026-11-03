@@ -1,11 +1,13 @@
+from pathlib import Path
 from queue import Queue
 
 import cv2
 import numpy as np
 import OpenGL.GL as gl
-import OpenGL.GLUT as glut
 
 from engine.drawing import Drawing
+from engine.matrices import orthographic
+from engine.shaders import compile_program
 
 
 class Renderer:
@@ -13,38 +15,38 @@ class Renderer:
     Core of the Engine
     """
 
-    def __init__(self):
+    def __init__(self, width: int, height: int, max_aspect: float | None = None):
         """
-        Initialize OpenGL state
+        Initialize OpenGL state for a framebuffer of the given size
+        :param width: Framebuffer width in pixels
+        :param height: Framebuffer height in pixels
+        :param max_aspect: Widest world view to show; wider windows crop vertically instead of
+            revealing space beyond the scene's backgrounds. None shows the full height always.
         """
-        gl.glEnable(gl.GL_TEXTURE_2D)
-        gl.glDisable(gl.GL_LIGHTING)
+        self._max_aspect = max_aspect
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
-        gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-
-        # Enable depth testing
         gl.glEnable(gl.GL_DEPTH_TEST)
         gl.glDepthFunc(gl.GL_LEQUAL)
+        gl.glClearColor(0.1, 0.1, 0.2, 1.0)
+        self.default_shader = compile_program()
+        self.resize(width, height)
 
-        # Enable alpha testing to handle transparency better
-        gl.glEnable(gl.GL_ALPHA_TEST)
-        gl.glAlphaFunc(gl.GL_GREATER, 0.1)  # Only render pixels with alpha > 0.1
-
-        # Get current window dimensions
-        width = glut.glutGet(glut.GLUT_WINDOW_WIDTH)
-        height = glut.glutGet(glut.GLUT_WINDOW_HEIGHT)
+    def resize(self, width: int, height: int) -> None:
+        """
+        Fit the viewport and camera to a new framebuffer size, keeping world units square
+        :param width: Framebuffer width in pixels
+        :param height: Framebuffer height in pixels
+        :return:
+        """
         gl.glViewport(0, 0, width, height)
-        gl.glMatrixMode(gl.GL_PROJECTION)
-        gl.glLoadIdentity()
         aspect = width / height
-        gl.glOrtho(-aspect, aspect, 1, -1, -1, 1)
+        half_width = aspect if self._max_aspect is None else min(aspect, self._max_aspect)
+        half_height = half_width / aspect
+        # Y grows downwards on screen: smaller y is higher
+        self.projection = orthographic(-half_width, half_width, half_height, -half_height, -1, 1)
 
-        gl.glMatrixMode(gl.GL_MODELVIEW)
-        gl.glLoadIdentity()
-
-    @staticmethod
-    def render(drawings_list: list[Drawing]) -> None:
+    def render(self, drawings_list: list[Drawing]) -> None:
         """
         Draw all sprites
         :param drawings_list: List of sprites to draw
@@ -52,24 +54,22 @@ class Renderer:
         """
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)  # pyright: ignore[reportOperatorIssue]
 
-        # Sort drawings by z-position (back to front)
+        # Sort drawings by z-position, nearest (largest z) first
         sorted_drawings = sorted(drawings_list, key=lambda x: x.position[2], reverse=True)
 
         # First pass: render opaque objects
         gl.glDepthMask(gl.GL_TRUE)
         for drawing in sorted_drawings:
             if not drawing.is_transparent:
-                drawing.render()
+                drawing.render(self.projection, self.default_shader)
 
         # Second pass: render transparent objects
         gl.glDepthMask(gl.GL_FALSE)  # Don't write to depth buffer for transparent objects
         for drawing in sorted_drawings:
             if drawing.is_transparent:
-                drawing.render()
+                drawing.render(self.projection, self.default_shader)
 
         gl.glDepthMask(gl.GL_TRUE)  # Reset depth mask
-        gl.glFlush()
-        glut.glutSwapBuffers()
 
     def animate(
         self,
@@ -92,13 +92,11 @@ class Renderer:
             for child in drawing.get_child_sprites():
                 drawings_queue.put(child)
 
-        glut.glutPostRedisplay()
-
     @staticmethod
     def create_texture(image: np.ndarray) -> int:
         """
         Create a texture from image represented by ndarray
-        :param image: Image to build texture
+        :param image: RGBA image to build texture
         :return: Texture ID
         """
         texid = gl.glGenTextures(1)
@@ -116,37 +114,15 @@ class Renderer:
         return texid
 
     @staticmethod
-    def create_texture_from_file(filename: str) -> int:
+    def create_texture_from_file(filename: str | Path) -> int:
         """
         Create a texture from image loaded by the filename
         :param filename: Path to image with the texture
         :return: Texture ID
         """
-        image = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
+        image = cv2.imread(str(filename), cv2.IMREAD_UNCHANGED)
         if image is None:
             raise FileNotFoundError(f"Texture image not found or unreadable: {filename}")
-        image = cv2.cvtColor(image, cv2.COLOR_RGBA2BGRA)
-        return Renderer.create_texture(image)
-
-    @staticmethod
-    def create_shader(
-        shader_type: gl.Constant,
-        source: str,
-    ) -> int:
-        """
-        Compile shader from string
-        :param shader_type:  Type of shader
-        :param source: Code of the shader represented by the string
-        :return: Shader ID
-        """
-        shader = gl.glCreateShader(shader_type)
-        gl.glShaderSource(shader, source)
-        gl.glCompileShader(shader)
-        result = gl.glGetShaderiv(shader, gl.GL_COMPILE_STATUS)
-        if not result:
-            raise RuntimeError(gl.glGetShaderInfoLog(shader))
-
-        shader_program = gl.glCreateProgram()
-        gl.glAttachShader(shader_program, shader)
-        gl.glLinkProgram(shader_program)
-        return shader_program  # pyright: ignore[reportReturnType]
+        channels = 1 if image.ndim == 2 else image.shape[2]
+        conversion = {1: cv2.COLOR_GRAY2RGBA, 3: cv2.COLOR_BGR2RGBA, 4: cv2.COLOR_BGRA2RGBA}[channels]
+        return Renderer.create_texture(cv2.cvtColor(image, conversion))

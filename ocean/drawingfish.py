@@ -1,24 +1,20 @@
 import numpy as np
 
 from engine.drawing import Drawing
+from engine.shaders import ShaderProgram
 from ocean.drawingbubble import DrawingBubble
 
-FISH_SHADER_CODE = """
-uniform float timer;
-vec4 sine_wave(vec4 p) {
+# Sine wave along the body in world space, so it travels along the fish as it swims
+FISH_TRANSFORM = """
+vec4 transform(vec3 p) {
+    vec4 world = model * vec4(p, 1.0);
     float pi = 3.14159;
     float A_x = 0.001;
     float A_y = 0.01;
     float w = 10.0 * pi;
-    float t = 30.0*pi/180.0;
-    float y = sin( w*p.x + t) * A_y;
-    float x = sin( w*p.x + t) * A_x;
-    return vec4(p.x+x, p.y+y, p.z, p.w);
-}
-void main() {
-    gl_Position = sine_wave(gl_ModelViewProjectionMatrix * gl_Vertex);
-    gl_FrontColor = gl_Color;
-    gl_TexCoord[0].xy = gl_MultiTexCoord0.xy;
+    float t = 30.0 * pi / 180.0;
+    float wave = sin(w * world.x + t);
+    return vec4(world.x + wave * A_x, world.y + wave * A_y, world.z, world.w);
 }
 """
 
@@ -33,7 +29,7 @@ class DrawingFish(Drawing):
         texid: int,
         grid_x: int = 5,
         grid_y: int = 5,
-        shader: int = 0,
+        shader: ShaderProgram | None = None,
         bubble_texture_id: int = 0,
     ):
         """
@@ -41,7 +37,7 @@ class DrawingFish(Drawing):
         :param texid: ID of texture
         :param grid_x: Mesh elements along axis X
         :param grid_y: Mesh elements along axis Y
-        :param shader: ID of shader. Select 0 if you need no shader
+        :param shader: Sprite program, or None for the renderer's default
         :param bubble_texture_id: ID of a bubble texture
         """
         super().__init__(texid, grid_x, grid_y, shader)

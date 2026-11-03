@@ -22,7 +22,7 @@ class DrawingBubble(Drawing):
         :param start_x: Start X position of the bubble
         :param start_y: Start Y position of the bubble
         """
-        super().__init__(texid, 1, 1, shader=0)
+        super().__init__(texid, 1, 1)
 
         bubble_size = np.random.uniform(0.01, 0.15)
         self.scale = np.array([bubble_size, bubble_size, 1.0])

@@ -1,8 +1,21 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
-import OpenGL.arrays.vbo as glvbo
 import OpenGL.GL as gl
+
+from engine.matrices import model_matrix
+from engine.shaders import ShaderProgram
+
+
+@dataclass(frozen=True)
+class Mesh:
+    """A unit quad subdivided into triangles, uploaded once and shared by every sprite of that grid size."""
+
+    vao: int
+    vbo: int
+    vertex_count: int
 
 
 class Drawing:
@@ -10,19 +23,21 @@ class Drawing:
     Draw and animate 3D sprite
     """
 
+    _meshes: dict[tuple[int, int], Mesh] = {}
+
     def __init__(
         self,
         texid: int,
         grid_x: int = 5,
         grid_y: int = 5,
-        shader: int = 0,
+        shader: ShaderProgram | None = None,
     ):
         """
-        Setup default position for sprite. Initialize mesh of selected size.
+        Setup default position for sprite. Select mesh of selected size.
         :param texid: ID of texture
         :param grid_x: Mesh elements along axis X
         :param grid_y: Mesh elements along axis Y
-        :param shader: ID of shader. Select 0 if you need no shader
+        :param shader: Sprite program, or None for the renderer's default
         """
 
         # Setup default positions of sprite
@@ -44,69 +59,33 @@ class Drawing:
         self._texid = texid
         self._shader = shader
         self._time_counter = 0.0
+        self._mesh = self._mesh_for(grid_x, grid_y)
 
-        # Create vertices array for the sprite
-        vertices = self._mesh_create(grid_size_x=grid_x, grid_size_y=grid_y)
-        self._vertices_count = len(vertices)
-        self._vbo_vertices = glvbo.VBO(np.array(vertices, "f"))
-        self._vbo_texcoords = glvbo.VBO(np.array(vertices, "f") + 0.5)
+    @property
+    def texid(self) -> int:
+        return self._texid
 
-        # Use compatibility profile for older OpenGL support
-        gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-        gl.glEnableClientState(gl.GL_TEXTURE_COORD_ARRAY)
-
-        self._vbo_vertices.bind()
-        gl.glVertexPointer(3, gl.GL_FLOAT, 0, None)
-
-        self._vbo_texcoords.bind()
-        gl.glTexCoordPointer(3, gl.GL_FLOAT, 0, None)
-
-    def _apply_transforms(self) -> None:
-        """
-        Apply translation, rotation and scaling to the sprite
-        :return:
-        """
-        gl.glTranslatef(*self.position)
-        gl.glRotatef(self.rotate[0], 1, 0, 0)
-        gl.glRotatef(self.rotate[1], 0, 1, 0)
-        gl.glRotatef(self.rotate[2], 0, 0, 1)
-        gl.glScalef(*self.scale)
-
-    def _draw_mesh(self) -> None:
-        """
-        Render sprite's mesh
-        :return:
-        """
-        gl.glPushMatrix()
-        self._apply_transforms()
-        gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-        gl.glEnableClientState(gl.GL_TEXTURE_COORD_ARRAY)
-        self._vbo_vertices.bind()
-        gl.glVertexPointer(3, gl.GL_FLOAT, 0, None)
-        self._vbo_texcoords.bind()
-        gl.glTexCoordPointer(3, gl.GL_FLOAT, 0, None)
-        gl.glDrawArrays(gl.GL_TRIANGLES, 0, self._vertices_count)
-        gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
-        gl.glDisableClientState(gl.GL_TEXTURE_COORD_ARRAY)
-        gl.glPopMatrix()
-
-    def render(self) -> None:
+    def render(self, projection: np.ndarray, default_shader: ShaderProgram) -> None:
         """
         Render sprite with attached texture and shader
+        :param projection: Camera projection matrix
+        :param default_shader: Program used when the sprite has none of its own
         :return:
         """
-        gl.glColor3f(*self.color)
+        shader = self._shader or default_shader
+        gl.glUseProgram(shader.id)
+        gl.glUniformMatrix4fv(shader.model, 1, gl.GL_TRUE, model_matrix(self.position, self.rotate, self.scale))
+        gl.glUniformMatrix4fv(shader.projection, 1, gl.GL_TRUE, projection)
+        gl.glUniform3f(shader.color, *self.color)
+        gl.glUniform1f(shader.timer, self._time_counter)
+        self._time_counter += self.step_animation_timer
+        # If timer came to border - go back
+        if self._time_counter >= self.max_animation_timer or self._time_counter <= 0:
+            self.step_animation_timer = -self.step_animation_timer
         gl.glBindTexture(gl.GL_TEXTURE_2D, self._texid)
-        gl.glUseProgram(self._shader)
-        if self._shader != 0:
-            # Send timer value to the shader
-            location = gl.glGetUniformLocation(self._shader, "timer")
-            gl.glUniform1f(location, self._time_counter)
-            self._time_counter += self.step_animation_timer
-            # If timer came to border - go back
-            if self._time_counter >= self.max_animation_timer or self._time_counter <= 0:
-                self.step_animation_timer = -self.step_animation_timer
-        self._draw_mesh()
+        gl.glBindVertexArray(self._mesh.vao)
+        gl.glDrawArrays(gl.GL_TRIANGLES, 0, self._mesh.vertex_count)
+        gl.glBindVertexArray(0)
         gl.glUseProgram(0)
 
     def animation(self) -> None:
@@ -123,16 +102,28 @@ class Drawing:
         """
         return []
 
+    @classmethod
+    def _mesh_for(cls, grid_x: int, grid_y: int) -> Mesh:
+        key = (grid_x, grid_y)
+        if key not in cls._meshes:
+            cls._meshes[key] = cls._mesh_create(grid_x, grid_y)
+        return cls._meshes[key]
+
+    @classmethod
+    def release_meshes(cls) -> None:
+        """Delete every shared mesh from the GPU; call once before the context goes away."""
+        for mesh in cls._meshes.values():
+            gl.glDeleteVertexArrays(1, [mesh.vao])
+            gl.glDeleteBuffers(1, [mesh.vbo])
+        cls._meshes.clear()
+
     @staticmethod
-    def _mesh_create(
-        grid_size_x: int = 5,
-        grid_size_y: int = 5,
-    ) -> list[float]:
+    def _mesh_create(grid_size_x: int, grid_size_y: int) -> Mesh:
         """
-        Create mesh of selected size
+        Upload a mesh of selected size: interleaved position (x, y, z) and texture coordinate (s, t)
         :param grid_size_x: Mesh elements along axis X
         :param grid_size_y: Mesh elements along axis Y
-        :return: List of vertices coordinates
+        :return: Mesh handles
         """
         vertices = []
         step_x = 1 / grid_size_x
@@ -140,24 +131,26 @@ class Drawing:
 
         for y in np.arange(-0.5, 0.5, step_y):
             for x in np.arange(-0.5, 0.5, step_x):
-                vertices += [
-                    x,
-                    y,
-                    0.0,
-                    x + step_x,
-                    y,
-                    0.0,
-                    x,
-                    y + step_y,
-                    0.0,
-                    x + step_x,
-                    y,
-                    0.0,
-                    x,
-                    y + step_y,
-                    0.0,
-                    x + step_x,
-                    y + step_y,
-                    0.0,
-                ]
-        return vertices
+                for px, py in [
+                    (x, y),
+                    (x + step_x, y),
+                    (x, y + step_y),
+                    (x + step_x, y),
+                    (x, y + step_y),
+                    (x + step_x, y + step_y),
+                ]:
+                    vertices += [px, py, 0.0, px + 0.5, py + 0.5]
+        data = np.array(vertices, dtype=np.float32)
+        stride = 5 * data.itemsize
+
+        vao = gl.glGenVertexArrays(1)
+        vbo = gl.glGenBuffers(1)
+        gl.glBindVertexArray(vao)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, data.nbytes, data, gl.GL_STATIC_DRAW)
+        gl.glEnableVertexAttribArray(0)
+        gl.glVertexAttribPointer(0, 3, gl.GL_FLOAT, gl.GL_FALSE, stride, gl.ctypes.c_void_p(0))
+        gl.glEnableVertexAttribArray(1)
+        gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, stride, gl.ctypes.c_void_p(3 * data.itemsize))
+        gl.glBindVertexArray(0)
+        return Mesh(vao=vao, vbo=vbo, vertex_count=len(data) // 5)

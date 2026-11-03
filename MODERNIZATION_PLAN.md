@@ -37,10 +37,9 @@ being copied) produces a swimming fish within 5 seconds. `ruff`, `pyright` and
 - Allowed: new files under `tests/`, `.github/`, `pyproject.toml`; edits to
   `engine/`, `ocean/`, `main_ocean.py`, docs.
 - Forbidden without Josh's approval: ML background-removal dependencies;
-  rewriting rendering to modern OpenGL (a native 2.1 legacy context works on
-  Apple Silicon, verified 2026-11-03: `GL_VERSION 2.1 Metal`, GLSL 1.20); any
-  backward-compatibility shim; deleting `setup.sh` / `run.sh` before Part 2
-  passes; pushing or merging.
+  any backward-compatibility shim; deleting `setup.sh` / `run.sh` before
+  Part 2 passes; merging. Pushing branches and opening PRs was approved on
+  2026-11-03 so CI can run.
 - Attempt cap: 3 critic rounds per part, then stop and escalate with the
   failed approaches listed. A repeated failure must come back with a changed
   strategy, not a retry.
@@ -88,15 +87,32 @@ needed.
 Success: all three exit 0 locally and in CI. Gate: Josh approves the Python
 floor and whether `requirements.txt` is kept for the README's manual path.
 
-### Part 2: Replace GLUT with glfw  (depends on Parts 0, 1 and the references)
+### Part 2: Replace GLUT with glfw and rewrite rendering on modern OpenGL  (depends on Parts 0, 1 and the references)
+Josh chose the modern-GL rewrite over keeping legacy GL in a 2.1 context
+(decision 2026-11-03).
 Builder: window creation, main loop, keyboard (ESC, Left, Right) and the 60 Hz
-timer move to glfw with a 2.1 context hint; `Renderer` stops calling
-`glutGet`/`glutSwapBuffers`; `cleanup_and_exit` becomes a resource registry
-object instead of attributes on a function. Legacy GL draw calls and GLSL 1.20
-shaders stay as they are. Asset paths (`ocean/images/...`) are resolved
-relative to the package, not the working directory, so the `fishscanner`
-console script works from any directory; `engine/` and `ocean/` get
-`__init__.py` files.
+tick move to glfw with an OpenGL 3.3 core, forward-compatible context (the
+newest profile macOS offers is 4.1 core; no compatibility profile exists).
+All fixed-function calls go: `Drawing` keeps its mesh in a VAO with one VBO
+of positions and texture coordinates and builds its model matrix in numpy
+from `position`/`rotate`/`scale`; `Renderer` owns the orthographic
+projection and passes a model-view-projection matrix, the sprite colour and
+the `timer` uniform to GLSL 3.30 shaders; a fragment shader samples the
+texture, multiplies by colour and discards fragments with alpha below 0.1 in
+place of `GL_ALPHA_TEST`. The fish and seaweed vertex shaders keep their
+sine-wave displacement, both applied before projection: the seaweed wave in
+sprite space (it is driven by the timer), the fish wave in world space,
+because the fish shader has no timer term and only animates as the fish
+moves through the wave; a sprite-space fish wave would be a static bend.
+The old fish shader displaced in clip space, so Part 5's fix lands here. If
+the A/B shows the body wiggle busier than the reference, the wave frequency
+is per world unit where the old one was per clip unit (a factor of the
+window aspect).
+Two-pass opaque/transparent rendering, depth test and blending are kept.
+`cleanup_and_exit` becomes a resource registry object instead of attributes
+on a function. Asset paths (`ocean/images/...`) are resolved relative to the
+package, not the working directory, so the `fishscanner` console script works
+from any directory; `engine/` and `ocean/` get `__init__.py` files.
 Critic: on a machine with no XQuartz, `uv run fishscanner`; blind A/B of
 screenshots per scene vs `refs/`; arrows cycle scenes; ESC exits 0; no GL
 errors logged. Also run on Ubuntu with Xvfb for the CI smoke test.
@@ -128,11 +144,13 @@ test is then re-baselined with Josh's OK.
 Success: A/B win on every photo. No ML dependencies (Boundary).
 
 ### Part 5: Animation and engine hygiene  (depends on Part 2)
-Builder: delta-time movement from the frame clock; fish shader applies the
-sine wave before projection (as the seaweed shader already does) so the tail
-wave is fish-local; dead-fish and bubble removal build new lists instead of
-removing during iteration; `ocean/debug.py` is either wired to a real debug
-overlay or deleted.
+Builder: delta-time movement from the frame clock; dead-fish and bubble
+removal build new lists instead of removing during iteration;
+`ocean/debug.py` is either wired to a real debug overlay or deleted. (The
+fish-shader wave fix landed in Part 2.) Open question for Josh: bubbles have
+not been drawn since commit 172395b "Fix collisions" because `Renderer.render`
+no longer walks child sprites; restore child rendering in Part 5 or delete
+the bubble code.
 Critic: 30 Hz vs 60 Hz traversal timing within 10%; blind A/B of the motion
 capture vs `refs/`; `grep` confirms no in-loop `.remove(`.
 Success: timing metric met and A/B equal or better.
@@ -173,11 +191,12 @@ would need a forbidden action; or a critic cannot judge without a human
 (for example, taste calls on the soft-alpha edge or on fish motion feel).
 "Until perfect" is not a stop condition.
 
-## Decisions needed from Josh before Part 2 starts
+## Decisions from Josh (2026-11-03)
 
-1. Legacy GL in a 2.1 context (recommended, verified working) vs a modern-GL
-   rewrite (larger, separate project).
-2. Python floor: keep 3.11 or move to 3.12.
-3. Keep `requirements.txt` alongside `pyproject.toml` for the manual path, or
-   drop it.
-4. Approve the one-time XQuartz install to capture reference screenshots.
+1. Rendering: modern-GL rewrite, not legacy GL in a 2.1 context.
+2. Python floor: 3.11.
+3. `requirements.txt`: kept for now (not yet ruled on).
+4. One-time XQuartz install for reference capture: approved. The cask's
+   `.pkg` needs sudo, so Josh runs `brew install --cask xquartz` himself.
+5. Pushing branches and opening PRs: approved.
+6. Part 4 photos: Josh supplies two new fish photos.
