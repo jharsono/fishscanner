@@ -23,6 +23,7 @@ class DrawingBubble(Drawing):
         :param start_y: Start Y position of the bubble
         """
         super().__init__(texid, 1, 1)
+        self.is_transparent = True  # Bubble texture has soft alpha edges
 
         bubble_size = np.random.uniform(0.01, 0.15)
         self.scale = np.array([bubble_size, bubble_size, 1.0])

@@ -147,10 +147,10 @@ Success: A/B win on every photo. No ML dependencies (Boundary).
 Builder: delta-time movement from the frame clock; dead-fish and bubble
 removal build new lists instead of removing during iteration;
 `ocean/debug.py` is either wired to a real debug overlay or deleted. (The
-fish-shader wave fix landed in Part 2.) Open question for Josh: bubbles have
-not been drawn since commit 172395b "Fix collisions" because `Renderer.render`
-no longer walks child sprites; restore child rendering in Part 5 or delete
-the bubble code.
+fish-shader wave fix landed in Part 2.) Bubbles had not been drawn since
+commit 172395b "Fix collisions" because `Renderer.render` no longer walked
+child sprites; Josh confirmed that was unintentional (2026-11-03) and Part 5
+restores child rendering.
 Critic: 30 Hz vs 60 Hz traversal timing within 10%; blind A/B of the motion
 capture vs `refs/`; `grep` confirms no in-loop `.remove(`.
 Success: timing metric met and A/B equal or better.

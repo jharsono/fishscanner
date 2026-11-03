@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: Part 2 critic round 1 (A/B against old-build references pending XQuartz install)
+Current target: Parts 2 and 5 critic PASS (A/B pending references); Part 4 and Part 6 next
 Completed parts: Part 0 (critic PASS); Part 1 (critic conditional PASS, wheel fix applied); Part 3 (round 2 critic PASS, leftovers applied)
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
@@ -8,6 +8,11 @@ Failed approaches (do not repeat):
   Always run with `python -B` / PYTHONDONTWRITEBYTECODE=1 and clear
   __pycache__ between mutations.
 - Running parallel shell commands that mutate the same source file.
+- Mutation-checking an UNCOMMITTED fix by editing the file and restoring it
+  with `git checkout`: that restores the committed version and discards the
+  fix. Commit (or stash) first, mutate, then `git checkout` to restore.
+- Chaining test -> commit -> push in one shell line without gating on the
+  test result; it pushed a red commit once.
 - Decoding JPEGs with cv2.imread in the ingestion path: a truncated
   progressive JPEG decodes to a full blurry frame with all markers, so
   size-settling alone let a stalled copy produce a fish from a half file.
@@ -42,12 +47,26 @@ git (pre-existing, unrelated to any part; needs Josh's OK to untrack).
   meshes shared per grid size, GLSL 3.30 programs built from a per-sprite
   transform function, numpy matrices, Resources registry, fixed-step loop;
   34 tests pass including GL smoke tests in a hidden window; all gates exit 0;
-  hidden-window screenshots of all three scenes look right.
+  hidden-window screenshots of all three scenes look right. Critic round 1:
+  conditional PASS; its largest gap (decoration textures leaked on every
+  scene switch, ~100 MB per Ocean visit) is fixed by caching textures per
+  file in Scene, with a test that fails against the uncached loader (54 vs
+  21 textures). Fish wave is in world space on purpose (documented in the
+  plan). Bubbles not rendering since commit 172395b was unintentional (Josh); fixed in Part 5.
 Blocked on Josh: XQuartz install (sudo) for old-build reference capture;
 enabling workflows on the forked repo (Actions tab button) so CI runs on
 PRs #7-#10; two new fish photos for Part 4.
+- Part 5: branch modernize/part-5-animation (stacked on Part 2); FixedStepClock
+  extracted and tested (tick count identical at 30/60/144 Hz frames, stall
+  cap), bubble removal no longer mutates the list it iterates (mutation
+  check: old code fails the test), meshes created lazily on first render so
+  sprite logic is testable without a GL context, unused ocean/debug.py
+  deleted; child sprites (bubbles) are rendered again, which Josh confirmed
+  had been lost unintentionally; 43 tests pass; all gates exit 0. The
+  fixed-step loop itself landed in Part 2; Part 5 extracted and tested it.
+  Critic round 1: PASS (30 vs 60 Hz identical, irregular frames within 0.3%).
 Next action: Part 2 critic on everything judgeable without references; A/B
-once references exist.
-Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 0 on Part 2); approvals
+once references exist; Part 5 critic after Part 2 passes.
+Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5); approvals
 pending on Python floor, requirements.txt, GL approach, XQuartz reference
 capture, and pushing branches for CI; no push.

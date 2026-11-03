@@ -1,5 +1,4 @@
 from pathlib import Path
-from queue import Queue
 
 import cv2
 import numpy as np
@@ -55,7 +54,7 @@ class Renderer:
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)  # pyright: ignore[reportOperatorIssue]
 
         # Sort drawings by z-position, nearest (largest z) first
-        sorted_drawings = sorted(drawings_list, key=lambda x: x.position[2], reverse=True)
+        sorted_drawings = sorted(self.all_sprites(drawings_list), key=lambda x: x.position[2], reverse=True)
 
         # First pass: render opaque objects
         gl.glDepthMask(gl.GL_TRUE)
@@ -80,17 +79,23 @@ class Renderer:
         :param drawings_list: List of sprites to animate
         :return:
         """
-        drawings_queue = Queue()
-        for drawing in drawings_list:
+        for drawing in self.all_sprites(drawings_list):
             drawing.animation()
-            for child in drawing.get_child_sprites():
-                drawings_queue.put(child)
 
-        while drawings_queue.qsize() > 0:
-            drawing = drawings_queue.get()
-            drawing.animation()
-            for child in drawing.get_child_sprites():
-                drawings_queue.put(child)
+    @staticmethod
+    def all_sprites(drawings_list: list[Drawing]) -> list[Drawing]:
+        """
+        Flatten sprites and their children (bubbles), parents first
+        :param drawings_list: Top-level sprites
+        :return: Every sprite to animate and draw
+        """
+        sprites: list[Drawing] = []
+        pending = list(drawings_list)
+        while pending:
+            drawing = pending.pop(0)
+            sprites.append(drawing)
+            pending.extend(drawing.get_child_sprites())
+        return sprites
 
     @staticmethod
     def create_texture(image: np.ndarray) -> int:

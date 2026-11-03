@@ -5,6 +5,7 @@ import glfw
 import numpy as np
 import OpenGL.GL as gl
 
+from engine.clock import FixedStepClock
 from engine.drawing import Drawing
 from engine.photos import PhotoWatcher, list_photos, scan_photo_file
 from engine.renderer import Renderer
@@ -161,8 +162,8 @@ class Scene:
 
     def remove_dead_fish(self) -> None:
         dead = [d for d in self.drawings if isinstance(d, DrawingFish) and not d.is_alive]
+        self.drawings[:] = [d for d in self.drawings if d not in dead]
         for fish in dead:
-            self.drawings.remove(fish)
             self.resources.release_texture(fish.texid)
 
 
@@ -244,15 +245,13 @@ def main():
     glfw.set_framebuffer_size_callback(window, lambda _window, width, height: renderer.resize(width, height))
 
     # Fixed-step animation: ticks happen at 60 Hz regardless of the display rate
+    clock = FixedStepClock(TICK_SECONDS)
     last_time = glfw.get_time()
-    pending = 0.0
     while not glfw.window_should_close(window):
         now = glfw.get_time()
-        pending = min(pending + now - last_time, 0.25)  # Cap catch-up after a stall
-        last_time = now
-        while pending >= TICK_SECONDS:
+        for _ in range(clock.advance(now - last_time)):
             step(renderer, scene, scanned_fish_queue)
-            pending -= TICK_SECONDS
+        last_time = now
         renderer.render(scene.drawings)
         glfw.swap_buffers(window)
         glfw.poll_events()
