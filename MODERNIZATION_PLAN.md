@@ -195,6 +195,17 @@ beat while its width changes; a contact sheet across one beat; the seaweed
 sway must be unchanged.
 Success: tests pass and Josh judges the motion natural in the running app.
 
+### Part 9: Turning loop at the borders  (bug Josh saw 2026-11-03)
+A fish that starts swimming already beyond a border (a long entry animation
+overshoots it) flipped its heading every tick, because the bounce checked
+position only; it oscillated in place while re-arming the y-rotation, so it
+spun on the spot. Builder: bounce only when beyond a border and still
+heading outward, for x and y; tests place a swimming fish past each border
+heading out and assert exactly one turn and a return inside.
+Critic: run the tests against the old bounce (must fail with hundreds of
+flips); drive many seeded fish through full entry animations and confirm
+none spins more than once per wall contact.
+
 ## Integration critic (final, fresh context)
 
 Fresh clone, `uv sync`, `uv run fishscanner`, drop one JPG and one HEIC,

@@ -171,3 +171,59 @@ def test_fish_leaving_from_the_far_point_exits_at_full_pace():
     before = fish.position.copy()
     fish.animation()
     assert np.isclose(abs((fish.position - before)[0]), abs(fish.vector[0]))
+
+
+def count_direction_changes(fish: DrawingFish, axis: int, ticks: int) -> int:
+    changes = 0
+    last = np.sign(fish.vector[axis])
+    for _ in range(ticks):
+        fish.animation()
+        if np.sign(fish.vector[axis]) != last:
+            changes += 1
+            last = np.sign(fish.vector[axis])
+    return changes
+
+
+def swimming_fish_beyond(position: list[float], vector: list[float]) -> DrawingFish:
+    """A fish already past a border and still heading out, as a long entry animation can leave it."""
+    fish = DrawingFish(texid=1)
+    start_swimming(fish)
+    fish._depth_period = 10**6  # Keep full speed for a clear count
+    fish.position = np.array(position)
+    fish.vector = np.array(vector)
+    return fish
+
+
+@pytest.mark.parametrize(
+    ("position", "vector", "axis"),
+    [
+        ([2.0, 0.0, 0.0], [0.003, 0.0, 0.0], 0),  # Beyond the right border
+        ([-2.0, 0.0, 0.0], [-0.003, 0.0, 0.0], 0),  # Beyond the left border
+        ([0.0, 0.6, 0.0], [0.0, 0.002, 0.0], 1),  # Below the bottom bound
+        ([0.0, -1.0, 0.0], [0.0, -0.002, 0.0], 1),  # Above the top bound
+    ],
+)
+def test_fish_beyond_a_border_turns_once_and_comes_back(position, vector, axis):
+    fish = swimming_fish_beyond(position, vector)
+    assert count_direction_changes(fish, axis, 600) == 1
+    assert fish._left < fish.position[0] < fish._right
+    assert fish._top < fish.position[1] < fish._bottom
+    if axis == 0:
+        assert fish.rotate[1] == 180 and fish.rotation_vector[1] == 0  # Turned around exactly once
+    else:
+        assert fish.rotate[1] == 0 and fish.rotation_vector[1] == 0  # A vertical bounce never turns the fish
+
+
+def test_fish_beyond_a_corner_turns_once_on_each_axis():
+    fish = swimming_fish_beyond([2.0, 0.6, 0.0], [0.003, 0.002, 0.0])
+    x_changes = 0
+    y_changes = 0
+    last = np.sign(fish.vector[:2])
+    for _ in range(600):
+        fish.animation()
+        now = np.sign(fish.vector[:2])
+        x_changes += now[0] != last[0]
+        y_changes += now[1] != last[1]
+        last = now
+    assert (x_changes, y_changes) == (1, 1)
+    assert fish.rotate[1] == 180 and fish.rotation_vector[1] == 0
