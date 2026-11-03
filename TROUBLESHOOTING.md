@@ -1,146 +1,50 @@
 # Troubleshooting Guide
 
-This guide covers common issues you might encounter while setting up and running FishScanner.
+## Installation
 
-## Installation Issues
+### `uv: command not found`
+Install uv: `brew install uv` on macOS, or see https://docs.astral.sh/uv/getting-started/installation/.
 
-### Homebrew Installation Fails
-```
-Error: Failed to install homebrew
-```
-**Solutions:**
-1. Check your internet connection
-2. Run `xcode-select --install` to ensure developer tools are installed
-3. Try the manual installation commands from the [Manual Setup](README.md#manual-setup) section
+### Python version errors
+The project needs Python 3.11 or newer. uv will download one if none is installed; otherwise check `uv python list`.
 
-### Python Installation Issues
-```
-Error: python@3.11 is already installed
-```
-**Solutions:**
-1. Try unlinking and relinking Python:
+### Starting over
 ```bash
-brew unlink python@3.11
-brew link python@3.11
-```
-2. Verify Python installation:
-```bash
-python3.11 --version
+rm -rf .venv
+uv sync
 ```
 
-### XQuartz Issues
-```
-Error: failed to open display
-```
-**Solutions:**
-1. Make sure you've logged out and back in after installing XQuartz
-2. Try these commands:
-```bash
-open -a XQuartz
-export DISPLAY=:0
-```
-3. Alternative display settings:
-```bash
-export DISPLAY=:0.0
-# or
-export DISPLAY=localhost:0
-```
+## Running
 
-## Runtime Issues
+### "Could not create an OpenGL 3.3 window"
+Your graphics driver does not offer an OpenGL 3.3 core profile. Update your system or graphics drivers. On Linux, make sure you are running inside a desktop session, not over plain SSH.
 
-### OpenGL/GLUT Errors
+### Window opens but shows only the dark clear colour
+The images are found relative to the package, so the folder you run from does not matter. Run `uv run pytest tests/test_renderer.py -v` and report the output in an issue.
 
-#### Segmentation Faults
-**Solutions:**
-1. Reinstall freeglut:
-```bash
-brew reinstall freeglut
-```
-2. Make sure XQuartz is running before starting the app
-3. Try running the app with the included script: `./run.sh`
+## Fish not appearing
 
-#### Graphics Driver Issues
-**Symptoms:** Black screen, graphical glitches, or crashes
-**Solutions:**
-1. Update your system software
-2. Reinstall OpenGL dependencies:
-```bash
-brew reinstall glfw
-```
+### The photo never shows up
+1. Check it is a `.jpg`, `.jpeg` or `.heic` file (any capitalisation) inside the `photos` folder next to where you ran the app.
+2. Wait a couple of seconds: a file is only scanned once it has stopped growing.
+3. Check the terminal (a photo that loads prints nothing): `Cannot read photo` means the file is corrupt or incomplete; `Markers in the image are not found` means the corner markers were not detected (see below). A photo that fails three times is skipped until the app restarts.
+4. A photo that replaces an existing file with the same name is not rescanned; save it under a new name.
 
-### Camera Problems
+### Markers in the image are not found
+1. All four corner markers must be fully visible and unobscured
+2. Hold the paper flat; strong curl or glare on a marker breaks detection
+3. Use even lighting and avoid shadows across the markers
+4. Fill the frame with the page, but keep a little margin around the markers
 
-#### Camera Not Found
-```
-Error: Camera device not available
-```
-**Solutions:**
-1. Grant camera permissions:
-   - System Settings → Privacy & Security → Camera
-   - Enable for Terminal/IDE you're using
-2. Try different camera IDs:
-   - Open `main_ocean.py`
-   - Change `camera_id` parameter (try 0, 1, or 2)
+### The fish is cut off or has background attached
+1. Keep the drawing inside the marked area; anything crossing the line between two markers is cropped, and a square around each corner marker is blanked
+2. Use a solid outline and fill; the background removal keeps the largest connected shape
 
-#### Poor Fish Detection
-**Solutions:**
-1. Ensure good lighting conditions
-2. Keep corner markers clearly visible
-3. Hold the paper steady and flat
-4. Make sure the entire template is visible in the camera
+## Performance
 
-### Virtual Environment Issues
+If animation stutters, close other GPU-heavy applications, and keep the `photos` folder to the fish you want: every photo there is scanned at startup. The app caps at 10 fish on screen and retires the oldest.
 
-#### Activation Fails
-```
-Error: cannot activate virtual environment
-```
-**Solutions:**
-1. Recreate the virtual environment:
-```bash
-rm -rf venv
-python3.11 -m venv venv
-source venv/bin/activate
-```
-2. Install dependencies again:
-```bash
-python3 -m pip install -r requirements.txt
-```
+## Still having problems?
 
-#### Missing Dependencies
-```
-ModuleNotFoundError: No module named '...'
-```
-**Solutions:**
-1. Make sure virtual environment is activated (you should see `(venv)` in terminal)
-2. Reinstall dependencies:
-```bash
-python3 -m pip install -r requirements.txt --force-reinstall
-```
-
-## Performance Optimization
-
-### Slow Performance
-**Solutions:**
-1. Install optional performance package:
-```bash
-python3 -m pip install PyOpenGL-accelerate
-```
-2. Close other resource-intensive applications
-3. Ensure good lighting for better fish detection
-
-### Memory Issues
-**Solutions:**
-1. Remove old photos from the `photos` folder
-2. Restart the application
-3. Make sure you have enough free disk space
-
-## Still Having Problems?
-
-If you're still experiencing issues:
 1. Check the [issues page](https://github.com/jharsono/fishscanner/issues) for similar problems
-2. Create a new issue with:
-   - Description of the problem
-   - Steps to reproduce
-   - Error messages
-   - Your system information (OS version, Python version)
+2. Create a new issue with a description, steps to reproduce, any error messages, and your OS and Python version (`uv run python --version`)
