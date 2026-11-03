@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: Parts 11 (no z pass-through) and 12 (fluid turns) requested by Josh; #20 and #21 await merge
+Current target: merge PRs #20-#23 on Josh's word; then follow-ups list
 Completed parts: 0, 1, 2, 3, 4, 5, 7, 8, 9 merged to main on 2026-11-03; 6 merging
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
@@ -122,11 +122,26 @@ matrix and tolerate the queue, or drop it.
   Round 3 critic (last): PASS; found the tie held the wrong fish (the one
   drawn on top stepped behind: a one-off pop for pairs entering together);
   now the top-drawn fish is held. Eased-effort look-ahead test added.
+- Part 12: branch modernize/part-12-fluid-turns (stacked on Part 11);
+  heading-based steering replaces the velocity flip: arcs at walls with a
+  committed turn direction, gentle wander, levelling, facing from heading.
+  Round 1 critic: FAIL: the tie-break was a heading-change sign, which
+  curves toward the middle at the right wall but away at the left (loops
+  past the top/bottom by 0.2); now chosen in the heading's frame, with a
+  test that fails on the inverted sign; vertical margin 0.2 for bursts.
+  8 fish x 5 min after warm-up: overshoot 0 on three sides, 0.09 bottom.
+  Round 2 critic: PASS with a regression it caught: go_away doubled vx,
+  which under steering can be ~0 mid-turn, leaving a culled fish hovering
+  forever; it now leaves level at double speed along its sideways or
+  facing direction and keeps facing while leaving (exits from every
+  heading within 4 s). Burst test tightened; top/bottom tie test added.
+  Round 3 critic (last): PASS (1728-case exit sweep, all leave within 7 s).
+  88 tests; gates 0.
 Part 4 round 2 critic: PASS (cast sweep never breaks). Noted for a small
 follow-up: the corner mask leaves a ~20 px ring of a touched marker; two
 comment wordings in simplescanner.py overstate paper noise and a blank
 border.
 Next action: Part 10 critic; integration critic verdict.
-Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7, 1 on Part 9, 1 on Part 6, 2 on Part 4, 2 on Part 11); approvals
+Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7, 1 on Part 9, 1 on Part 6, 2 on Part 4, 2 on Part 11, 2 on Part 12); approvals
 pending on Python floor, requirements.txt, GL approach, XQuartz reference
 capture, and pushing branches for CI; no push.

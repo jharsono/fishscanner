@@ -216,25 +216,16 @@ def test_fish_beyond_a_border_turns_once_and_comes_back(position, vector, axis):
     assert count_direction_changes(fish, axis, 600) == 1
     assert fish._left < fish.position[0] < fish._right
     assert fish._top < fish.position[1] < fish._bottom
-    if axis == 0:
-        assert fish.rotate[1] == 180 and fish.rotation_vector[1] == 0  # Turned around exactly once
-    else:
-        assert fish.rotate[1] == 0 and fish.rotation_vector[1] == 0  # A vertical bounce never turns the fish
+    faces_its_heading = 0 if (fish.vector[0] >= 0) == (fish._base_scale[0] >= 0) else 180
+    assert fish.rotate[1] == faces_its_heading and fish.rotation_vector[1] == 0
 
 
-def test_fish_beyond_a_corner_turns_once_on_each_axis():
+def test_fish_beyond_a_corner_turns_once_and_comes_back():
     fish = swimming_fish_beyond([2.0, 0.6, 0.0], [0.003, 0.002, 0.0])
-    x_changes = 0
-    y_changes = 0
-    last = np.sign(fish.vector[:2])
-    for _ in range(600):
-        fish.animation()
-        now = np.sign(fish.vector[:2])
-        x_changes += now[0] != last[0]
-        y_changes += now[1] != last[1]
-        last = now
-    assert (x_changes, y_changes) == (1, 1)
-    assert fish.rotate[1] == 180 and fish.rotation_vector[1] == 0
+    assert count_direction_changes(fish, 0, 600) == 1  # One arc, not a bounce on each wall
+    assert fish._left < fish.position[0] < fish._right
+    assert fish._top < fish.position[1] < fish._bottom
+    assert fish.rotate[1] == 180 and fish.rotation_vector[1] == 0  # Entered heading right, left heading left
 
 
 def test_each_fish_has_its_own_tempo():
@@ -391,7 +382,9 @@ def test_many_fish_keep_cycling_and_never_pass_through_each_other():
                 ):
                     crossings += 1
     assert crossings == 0
-    assert min(advanced) > 600 and np.mean(advanced) > 1800, f"fish spent too long held: {advanced}"
+    # Fish that travel together in arcs stay overlapped for long stretches, so a third of the
+    # minute cycling on average, and never less than ten seconds for any fish, is the bar
+    assert min(advanced) > 600 and np.mean(advanced) > 1200, f"fish spent too long held: {advanced}"
 
 
 def test_overlap_lookahead_sees_fish_about_to_meet_or_grow_into_each_other():
@@ -434,3 +427,85 @@ def test_lookahead_predicts_the_eased_effort_not_the_current_one():
     assert a.overlaps(b, after_step=True) == (b._next_effort() * 0.05 > 0.2)
     b._effort_target = 0.0
     assert not a.overlaps(b, after_step=True)
+
+
+def heading(fish: DrawingFish) -> float:
+    return float(np.arctan2(fish.vector[1], fish.vector[0]))
+
+
+def test_turn_at_a_wall_is_a_smooth_arc_not_a_bounce():
+    from ocean.drawingfish import TURN_RATE
+
+    fish = swimming_fish_beyond([1.2, -0.2, 0.0], [0.003, 0.0, 0.0])  # Inside the border, heading for it
+    speed = np.linalg.norm(fish.vector[:2])
+    headings = [heading(fish)]
+    x_changes = 0
+    for _ in range(400):
+        before = np.sign(fish.vector[0])
+        fish.animation()
+        x_changes += np.sign(fish.vector[0]) != before
+        headings.append(heading(fish))
+        assert np.isclose(np.linalg.norm(fish.vector[:2]), speed, rtol=1e-6)  # Speed is kept, only direction turns
+    steps = [abs((b - a + np.pi) % (2 * np.pi) - np.pi) for a, b in zip(headings[:-1], headings[1:], strict=True)]
+    assert max(steps) <= TURN_RATE + 1e-9, "heading jumped instead of turning"
+    assert x_changes == 1
+    assert fish.vector[0] < 0 and fish.position[0] < fish._right + 0.1
+    assert fish.rotate[1] == 180 and fish.rotation_vector[1] == 0
+
+
+def test_fish_faces_the_way_it_is_heading_after_turning_twice():
+    fish = swimming_fish_beyond([1.2, -0.2, 0.0], [0.003, 0.0, 0.0])
+    for _ in range(400):
+        fish.animation()
+    assert fish.vector[0] < 0 and fish.rotate[1] == 180
+    fish.position[0] = -1.2  # Carry it to the other wall still heading left
+    for _ in range(400):
+        fish.animation()
+    assert fish.vector[0] > 0 and fish.rotate[1] == 0
+
+
+@pytest.mark.parametrize("wall_x, vx", [(1.2, 0.003), (-1.2, -0.003)])
+def test_turn_direction_curves_toward_the_middle_of_the_tank(wall_x, vx):
+    """Straight at either side wall, clear of the top and bottom margins, so only the tie-break decides."""
+    middle = -0.2
+    low = swimming_fish_beyond([wall_x, 0.05, 0.0], [vx, 0.0, 0.0])  # Below the middle (y grows downwards)
+    high = swimming_fish_beyond([wall_x, -0.45, 0.0], [vx, 0.0, 0.0])  # Above the middle
+    for _ in range(90):
+        low.animation()
+        high.animation()
+    assert low.position[1] < 0.05 and abs(low.position[1] - middle) < abs(0.05 - middle)
+    assert high.position[1] > -0.45 and abs(high.position[1] - middle) < abs(-0.45 - middle)
+
+
+def test_bursting_fish_straight_at_the_top_turns_before_leaving_the_screen():
+    fish = swimming_fish_beyond([0.0, -0.3, 0.0], [0.0, -0.003, 0.0])  # Straight up at full pace
+    hold_effort(fish, 1.9)
+    lowest_y = 0.0
+    for _ in range(300):
+        fish.animation()
+        lowest_y = min(lowest_y, fish.position[1])
+    assert (
+        lowest_y > fish._top - 0.07 and fish.vector[1] > 0
+    )  # Turned back down within a small overshoot (0.12 margin: 0.094)
+
+
+def test_fish_told_to_leave_from_a_vertical_heading_still_leaves():
+    fish = swimming_fish_beyond([0.0, -0.2, 0.0], [0.0, -0.003, 0.0])  # Mid-turn, heading straight up
+    fish.go_away()
+    for _ in range(1500):
+        fish.animation()
+        if not fish.is_alive:
+            break
+    assert not fish.is_alive, f"still in the tank at {fish.position[:2]}"
+    faces_its_heading = 0.0 if (fish.vector[0] >= 0) == (fish._base_scale[0] >= 0) else 180.0
+    assert fish.rotate[1] == faces_its_heading  # Faced the way it left
+
+
+@pytest.mark.parametrize("wall_y, vy", [(-0.55, -0.003), (0.15, 0.003)])
+def test_turn_at_the_top_or_bottom_curves_toward_the_tank_centre(wall_y, vy):
+    left = swimming_fish_beyond([-0.8, wall_y, 0.0], [0.0, vy, 0.0])
+    right = swimming_fish_beyond([0.8, wall_y, 0.0], [0.0, vy, 0.0])
+    for _ in range(90):
+        left.animation()
+        right.animation()
+    assert left.position[0] > -0.8 and right.position[0] < 0.8  # Each arcs toward x = 0
