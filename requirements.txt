@@ -3,4 +3,3 @@ opencv-python>=4.5.1.48,<5.0.0
 PyOpenGL>=3.1.6
 glfw
 pillow-heif
-watchdog>=3.0.0

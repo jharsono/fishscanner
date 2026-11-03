@@ -1,29 +1,22 @@
 import os
-import time
 from collections.abc import Callable
 from functools import partial
-from glob import glob
+from pathlib import Path
 from queue import Queue
-from threading import Thread
 
-import cv2
 import numpy as np
 import OpenGL.GL as gl
 import OpenGL.GLUT as glut
-from PIL import Image
-from pillow_heif import register_heif_opener
-from watchdog.events import FileCreatedEvent, FileSystemEventHandler
-from watchdog.observers import Observer
 
 from engine.drawing import Drawing
+from engine.photos import PhotoWatcher, list_photos, scan_photo_file
 from engine.renderer import Renderer
 from engine.simplescanner import SimpleScanner
 from ocean.drawingfish import FISH_SHADER_CODE, DrawingFish
 from ocean.drawingseaweed import SEAWEED_SHADER_CODE, DrawingSeaweed
 from ocean.drawingstatic import DrawingStatic
 
-# Register HEIF opener for HEIC support
-register_heif_opener()
+PHOTOS_DIR = Path("photos")
 
 
 def create_back_layer(
@@ -172,146 +165,26 @@ def update_scene(drawings_list: list[Drawing], scene_config: dict) -> None:
         draw_simple_scene(drawings_list, scene_config["background"])
 
 
-def scan_from_frame(
-    frame: np.ndarray,
-    scanner: SimpleScanner,
-) -> np.ndarray | None:
+def load_fish_from_files(scanner: SimpleScanner, scanned_fish_queue: Queue) -> None:
     """
-    Process a fish from an image file
-    :param frame: BGR photo of the fish drawing
-    :param scanner: Object of scanner to process photo
-    :return: Processed frame with a fish selected from the background
-    """
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    try:
-        processed_frame = scanner.scan(frame)
-    except ValueError as e:
-        print(e)
-        return None
-    processed_frame = scanner.remove_background(processed_frame)
-    return processed_frame
-
-
-def load_fish_from_files(
-    scanner: SimpleScanner,
-    drawings_list: list[Drawing],
-    fish_queue: Queue,
-    fish_shader_program: int = 0,
-    bubble_texture: int = 0,
-) -> None:
-    """
-    Load all the predrawing fish from the folder
+    Scan every photo already in the photos folder
     :param scanner: Object of scanner to process photos
-    :param drawings_list: Lists of sprites to add fish in it
-    :param fish_queue: Queue to maintain order of fish
-    :param fish_shader_program: ID of fish shader
-    :param bubble_texture: ID of bubble texture
+    :param scanned_fish_queue: Queue the animation loop turns into fish sprites
     :return:
     """
-    # Load both JPG and HEIC files
-    jpg_files = glob("./photos/*.jpg")
-    heic_files = glob("./photos/*.heic")
-    files = jpg_files + heic_files
-
-    for filename in files:
-        try:
-            if filename.lower().endswith(".heic"):
-                heif_file = Image.open(filename)
-                rgb_image = heif_file.convert("RGB")
-                frame = cv2.cvtColor(np.array(rgb_image), cv2.COLOR_RGB2BGR)
-            else:
-                frame = cv2.imread(filename)
-
-            if frame is None:
-                print(f"Error reading image with filename: {filename}")
-                continue
-
-            scanned_fish = scan_from_frame(frame, scanner)
-            if scanned_fish is not None:
-                drawing = DrawingFish(
-                    Renderer.create_texture(scanned_fish), shader=fish_shader_program, bubble_texture_id=bubble_texture
-                )
-                drawings_list.append(drawing)
-                fish_queue.put(drawing)
-        except Exception as e:
-            print(f"Error processing {filename}: {str(e)}")
-            continue
-
-
-class PhotoHandler(FileSystemEventHandler):
-    def __init__(self, scanner: SimpleScanner, scanned_fish_queue: Queue):
-        self.scanner = scanner
-        self.scanned_fish_queue = scanned_fish_queue
-        self.processed_files = set()
-
-    def on_created(self, event):
-        if not isinstance(event, FileCreatedEvent):
-            return
-
-        filename = os.fsdecode(event.src_path)
-        if not (filename.lower().endswith(".jpg") or filename.lower().endswith(".heic")):
-            return
-
-        if filename in self.processed_files:
-            return
-
-        try:
-            if filename.lower().endswith(".heic"):
-                # Load HEIC files using pillow-heif
-                heif_file = Image.open(filename)
-                # Convert to RGB format that OpenCV expects
-                rgb_image = heif_file.convert("RGB")
-                # Convert PIL image to OpenCV format
-                frame = cv2.cvtColor(np.array(rgb_image), cv2.COLOR_RGB2BGR)
-            else:
-                # Load JPG files using OpenCV directly
-                frame = cv2.imread(filename)
-
-            if frame is None:
-                print(f"Error reading image with filename: {filename}")
-                return
-
-            scanned_fish = scan_from_frame(frame, self.scanner)
-            if scanned_fish is not None:
-                self.scanned_fish_queue.put(scanned_fish)
-                self.processed_files.add(filename)
-        except Exception as e:
-            print(f"Error processing {filename}: {str(e)}")
-
-
-def watch_photos_directory(
-    scanner: SimpleScanner,
-    scanned_fish_queue: Queue,
-) -> None:
-    """
-    Watch the photos directory for new files using filesystem events
-    :param scanner: Scanner object to process photos
-    :param scanned_fish_queue: Queue to store scanned fish
-    """
-    event_handler = PhotoHandler(scanner, scanned_fish_queue)
-    observer = Observer()
-    observer.schedule(event_handler, path="./photos", recursive=False)
-    observer.start()
-
-    # Store observer in cleanup function for access during exit
-    cleanup_and_exit.observer = observer
-
-    try:
-        while True:
-            time.sleep(1)  # Keep thread alive
-    except KeyboardInterrupt:
-        observer.stop()
-    observer.join()
+    for path in list_photos(PHOTOS_DIR):
+        scanned_fish = scan_photo_file(path, scanner)
+        if scanned_fish is not None:
+            scanned_fish_queue.put(scanned_fish)
 
 
 def cleanup_and_exit():
     """
     Cleanup function to be called before program exit
     """
-    # Stop the observer thread
-    if hasattr(cleanup_and_exit, "observer"):
-        cleanup_and_exit.observer.stop()
-        cleanup_and_exit.observer.join()
+    # Stop the photo watcher thread
+    if hasattr(cleanup_and_exit, "watcher"):
+        cleanup_and_exit.watcher.stop()
 
     # Clean up OpenGL resources
     # Delete shaders
@@ -494,16 +367,18 @@ def main():
 
     fish_shader_program = Renderer.create_shader(gl.GL_VERTEX_SHADER, FISH_SHADER_CODE)
     bubble_texture = Renderer.create_texture_from_file("ocean/images/bubble.png")
-    load_fish_from_files(scanner, drawings_list, fish_queue, fish_shader_program, bubble_texture)
+    PHOTOS_DIR.mkdir(exist_ok=True)
+    load_fish_from_files(scanner, scanned_fish_queue)
 
     # Store resources in cleanup function for proper deletion
     cleanup_and_exit.fish_shader = fish_shader_program
     cleanup_and_exit.bubble_texture = bubble_texture
 
-    # Start the file watcher thread
-    watcher_thread = Thread(target=watch_photos_directory, args=(scanner, scanned_fish_queue))
-    watcher_thread.daemon = True  # Thread will exit when main program exits
-    watcher_thread.start()
+    # Scan photos added while the app is running. A photo that lands between the startup
+    # scan above and this start() is treated as already present and will not be scanned.
+    watcher = PhotoWatcher(PHOTOS_DIR, scanner, scanned_fish_queue)
+    watcher.start()
+    cleanup_and_exit.watcher = watcher
 
     glut.glutIgnoreKeyRepeat(True)
     key_handler, special_key_handler = create_key_processor(
