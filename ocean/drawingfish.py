@@ -1,5 +1,3 @@
-from typing import List
-
 import numpy as np
 
 from engine.drawing import Drawing
@@ -31,12 +29,12 @@ class DrawingFish(Drawing):
     """
 
     def __init__(
-            self,
-            texid: int,
-            grid_x: int = 5,
-            grid_y: int = 5,
-            shader: int = 0,
-            bubble_texture_id: int = 0,
+        self,
+        texid: int,
+        grid_x: int = 5,
+        grid_y: int = 5,
+        shader: int = 0,
+        bubble_texture_id: int = 0,
     ):
         """
         Set default position of fish and select default vector of moving
@@ -46,31 +44,31 @@ class DrawingFish(Drawing):
         :param shader: ID of shader. Select 0 if you need no shader
         :param bubble_texture_id: ID of a bubble texture
         """
-        super(DrawingFish, self).__init__(texid, grid_x, grid_y, shader)
+        super().__init__(texid, grid_x, grid_y, shader)
         self.is_transparent = True  # Mark fish as transparent for proper rendering
-        self.scale = np.array([1.0, 0.75, 0.3])  
+        self.scale = np.array([1.0, 0.75, 0.3])
         self.vector = np.array([0, 0.02, 0.0])
-        self.is_alive = True # The fish will be deleted from the drawing list when it False
+        self.is_alive = True  # The fish will be deleted from the drawing list when it False
 
         self._left = -1.5
         self._right = 1.5
         self._top = -0.7
         self._bottom = 0.3
-        
+
         # Randomly choose entry direction (0: left, 1: right, 2: top, 3: bottom)
         entry_direction = np.random.randint(4)
         if entry_direction == 0:  # From left
-            self.position = np.array([-2.0, np.random.uniform(self._top, self._bottom), 0.])
+            self.position = np.array([-2.0, np.random.uniform(self._top, self._bottom), 0.0])
             self.vector = np.array([0.02, 0.0, 0.0])
         elif entry_direction == 1:  # From right
-            self.position = np.array([2.0, np.random.uniform(self._top, self._bottom), 0.])
+            self.position = np.array([2.0, np.random.uniform(self._top, self._bottom), 0.0])
             self.vector = np.array([-0.02, 0.0, 0.0])
             self.scale[0] = -abs(self.scale[0])  # Face left
         elif entry_direction == 2:  # From top
-            self.position = np.array([np.random.uniform(self._left, self._right), -1, 0.])
+            self.position = np.array([np.random.uniform(self._left, self._right), -1, 0.0])
             self.vector = np.array([0.0, 0.02, 0.0])
         else:  # From bottom
-            self.position = np.array([np.random.uniform(self._left, self._right), 0.5, 0.])
+            self.position = np.array([np.random.uniform(self._left, self._right), 0.5, 0.0])
             self.vector = np.array([0.0, -0.02, 0.0])
 
         # Randomly flip horizontal direction for variety
@@ -79,7 +77,7 @@ class DrawingFish(Drawing):
             self.vector[0] = np.random.uniform(-0.01, 0.01)  # Add slight horizontal movement
 
         # Parameters for animations
-        self._animation_stage = 'init'
+        self._animation_stage = "init"
         self._init_animation_step = np.random.randint(60, 180)  # Random start time between 1-3 seconds at 60fps
         self._water_resistance = np.random.uniform(0.95, 0.98)
 
@@ -95,8 +93,7 @@ class DrawingFish(Drawing):
         Setup initial values for velocity vector
         :return:
         """
-        self.vector = np.array([np.random.uniform(0.002, 0.003),
-                                np.random.uniform(0.001, 0.002), 0.0])
+        self.vector = np.array([np.random.uniform(0.002, 0.003), np.random.uniform(0.001, 0.002), 0.0])
         if self.scale[0] < 0:
             self.vector[0] = -self.vector[0]
         if np.random.randint(2) == 0:
@@ -109,9 +106,8 @@ class DrawingFish(Drawing):
     def _process_bubbles(self) -> None:
         # randomly create bubble
         if np.random.randint(int(self._bubble_random_frequency)) == 0:
-            bubble_x = np.random.uniform(self.position[0], self.position[0] + self.scale[0]/2)
-            bubble = DrawingBubble(self._bubble_texture_id,
-                                   start_x=bubble_x, start_y=self.position[1])
+            bubble_x = np.random.uniform(self.position[0], self.position[0] + self.scale[0] / 2)
+            bubble = DrawingBubble(self._bubble_texture_id, start_x=bubble_x, start_y=self.position[1])
             bubble.deviation_x = self._bubble_deviation_x
             bubble.speed_y = self._bubble_speed_y
             self._bubbles.append(bubble)
@@ -129,16 +125,16 @@ class DrawingFish(Drawing):
         self.position += self.vector
         self._process_bubbles()
 
-        if self._animation_stage == 'init':
+        if self._animation_stage == "init":
             self._init_animation_step -= 1
             self._bubble_random_frequency += 0.1
             self.vector[1] *= self._water_resistance
             # Finis init animation
             if self._init_animation_step == 0:
                 self._init_fish_velocity()
-                self._animation_stage = 'swim'
+                self._animation_stage = "swim"
 
-        elif self._animation_stage == 'swim':
+        elif self._animation_stage == "swim":
             # If we near border go to the other direction
             if self.position[0] > self._right or self.position[0] < self._left:
                 self.vector[0] = -self.vector[0]
@@ -152,11 +148,11 @@ class DrawingFish(Drawing):
             if self.rotate[1] % 180 == 0:
                 self.rotation_vector[1] = 0.0
 
-        elif self._animation_stage == 'finish':
+        elif self._animation_stage == "finish":
             if self.position[0] > self._right + 1.0 or self.position[0] < self._left - 1.0:
                 self.is_alive = False
 
-    def get_child_sprites(self) -> List[Drawing]:
+    def get_child_sprites(self) -> list[Drawing]:
         """
         Return list of bubbles
         :return: List of bubbles
@@ -170,4 +166,4 @@ class DrawingFish(Drawing):
         """
         self.vector[1] = 0.0
         self.vector[0] *= 2
-        self._animation_stage = 'finish'
+        self._animation_stage = "finish"

@@ -93,7 +93,10 @@ Builder: window creation, main loop, keyboard (ESC, Left, Right) and the 60 Hz
 timer move to glfw with a 2.1 context hint; `Renderer` stops calling
 `glutGet`/`glutSwapBuffers`; `cleanup_and_exit` becomes a resource registry
 object instead of attributes on a function. Legacy GL draw calls and GLSL 1.20
-shaders stay as they are.
+shaders stay as they are. Asset paths (`ocean/images/...`) are resolved
+relative to the package, not the working directory, so the `fishscanner`
+console script works from any directory; `engine/` and `ocean/` get
+`__init__.py` files.
 Critic: on a machine with no XQuartz, `uv run fishscanner`; blind A/B of
 screenshots per scene vs `refs/`; arrows cycle scenes; ESC exits 0; no GL
 errors logged. Also run on Ubuntu with Xvfb for the CI smoke test.

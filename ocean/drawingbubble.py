@@ -11,10 +11,10 @@ class DrawingBubble(Drawing):
     """
 
     def __init__(
-            self,
-            texid: int,
-            start_x: float = 0.,
-            start_y: float = 0.,
+        self,
+        texid: int,
+        start_x: float = 0.0,
+        start_y: float = 0.0,
     ):
         """
         Set starting position for the bubble
@@ -22,11 +22,11 @@ class DrawingBubble(Drawing):
         :param start_x: Start X position of the bubble
         :param start_y: Start Y position of the bubble
         """
-        super(DrawingBubble, self).__init__(texid, 1, 1, shader=0)
+        super().__init__(texid, 1, 1, shader=0)
 
         bubble_size = np.random.uniform(0.01, 0.15)
         self.scale = np.array([bubble_size, bubble_size, 1.0])
-        self.position = np.array([start_x, start_y, 0.])
+        self.position = np.array([start_x, start_y, 0.0])
         self._start_x = start_x
         self._start_y = start_y
 

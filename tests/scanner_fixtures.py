@@ -1,4 +1,5 @@
 """Shared paths and helpers for scanner tests and golden regeneration."""
+
 from pathlib import Path
 
 import cv2

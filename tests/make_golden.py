@@ -3,6 +3,7 @@
 Run only when a scanner change is intended to alter the mask, and review the
 resulting PNGs before committing them.
 """
+
 import cv2
 
 from engine.simplescanner import SimpleScanner

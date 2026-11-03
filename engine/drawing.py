@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import List
-
-import OpenGL.GL as gl
-import OpenGL.arrays.vbo as glvbo
 import numpy as np
+import OpenGL.arrays.vbo as glvbo
+import OpenGL.GL as gl
 
 
 class Drawing:
@@ -13,11 +11,11 @@ class Drawing:
     """
 
     def __init__(
-            self,
-            texid: int,
-            grid_x: int = 5,
-            grid_y: int = 5,
-            shader: int = 0,
+        self,
+        texid: int,
+        grid_x: int = 5,
+        grid_y: int = 5,
+        shader: int = 0,
     ):
         """
         Setup default position for sprite. Initialize mesh of selected size.
@@ -28,10 +26,12 @@ class Drawing:
         """
 
         # Setup default positions of sprite
-        self.position = np.array([0, 0., 0.])
-        self.rotate = np.array([0., 0., 0.])
+        self.position = np.array([0, 0.0, 0.0])
+        self.rotate = np.array([0.0, 0.0, 0.0])
         self.scale = np.array([1.0, 1.0, 1.0])
         self.color = np.array([1.0, 1.0, 1.0])
+        # Transparent sprites are rendered in a second pass without depth writes
+        self.is_transparent = False
 
         # Setup default animation settings
         self.max_animation_timer = 1
@@ -48,8 +48,8 @@ class Drawing:
         # Create vertices array for the sprite
         vertices = self._mesh_create(grid_size_x=grid_x, grid_size_y=grid_y)
         self._vertices_count = len(vertices)
-        self._vbo_vertices = glvbo.VBO(np.array(vertices, 'f'))
-        self._vbo_texcoords = glvbo.VBO(np.array(vertices, 'f') + 0.5)
+        self._vbo_vertices = glvbo.VBO(np.array(vertices, "f"))
+        self._vbo_texcoords = glvbo.VBO(np.array(vertices, "f") + 0.5)
 
         # Use compatibility profile for older OpenGL support
         gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
@@ -116,7 +116,7 @@ class Drawing:
         """
         pass
 
-    def get_child_sprites(self) -> List[Drawing]:
+    def get_child_sprites(self) -> list[Drawing]:
         """
         Override this method to return all Drawings that child for the current one
         :return: List of child drawings
@@ -125,9 +125,9 @@ class Drawing:
 
     @staticmethod
     def _mesh_create(
-            grid_size_x: int = 5,
-            grid_size_y: int = 5,
-    ) -> List[float]:
+        grid_size_x: int = 5,
+        grid_size_y: int = 5,
+    ) -> list[float]:
         """
         Create mesh of selected size
         :param grid_size_x: Mesh elements along axis X
@@ -140,11 +140,24 @@ class Drawing:
 
         for y in np.arange(-0.5, 0.5, step_y):
             for x in np.arange(-0.5, 0.5, step_x):
-                vertices += [x, y, 0.0,
-                             x + step_x, y, 0.0,
-                             x, y + step_y, 0.0,
-                             x + step_x, y, 0.0,
-                             x, y + step_y, 0.0,
-                             x + step_x, y + step_y, 0.0,
-                             ]
+                vertices += [
+                    x,
+                    y,
+                    0.0,
+                    x + step_x,
+                    y,
+                    0.0,
+                    x,
+                    y + step_y,
+                    0.0,
+                    x + step_x,
+                    y,
+                    0.0,
+                    x,
+                    y + step_y,
+                    0.0,
+                    x + step_x,
+                    y + step_y,
+                    0.0,
+                ]
         return vertices
