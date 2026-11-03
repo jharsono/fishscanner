@@ -2,7 +2,8 @@
 
 Every sprite program shares the vertex inputs, uniforms and fragment shader below.
 A sprite kind only supplies a `vec4 transform(vec3 p)` function that maps a mesh
-vertex to world space; it may use the `model` matrix and the bouncing `timer`.
+vertex to world space; it may use the `model` matrix, the bouncing per-sprite `timer`
+and the continuous `time` in seconds since the app started.
 """
 
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ layout(location = 1) in vec2 texcoord;
 uniform mat4 model;
 uniform mat4 projection;
 uniform float timer;
+uniform float time;
 out vec2 v_texcoord;
 """
 
@@ -56,6 +58,7 @@ class ShaderProgram:
     model: int
     projection: int
     timer: int
+    time: int
     color: int
 
 
@@ -92,5 +95,6 @@ def compile_program(transform_source: str = DEFAULT_TRANSFORM) -> ShaderProgram:
         model=gl.glGetUniformLocation(program, "model"),
         projection=gl.glGetUniformLocation(program, "projection"),
         timer=gl.glGetUniformLocation(program, "timer"),
+        time=gl.glGetUniformLocation(program, "time"),
         color=gl.glGetUniformLocation(program, "color"),
     )
