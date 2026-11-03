@@ -18,7 +18,8 @@ A fresh clone on a stock Apple Silicon Mac runs with `uv sync && uv run
 fishscanner`, with no XQuartz, no freeglut, no `DISPLAY` export and no logout.
 Dropping a JPG, JPEG or HEIC into `photos/` (any case, including a file still
 being copied) produces a swimming fish within 5 seconds. `ruff`, `pyright` and
-`pytest` pass locally and in GitHub Actions on macOS and Ubuntu.
+`pytest` pass locally on the Mac and in GitHub Actions on Ubuntu (macOS
+dropped from CI on 2026-11-03: GitHub's macOS runners never left the queue).
 
 **Metric (evidence a critic can inspect directly)**
 - Scanner: golden alpha masks for `photos/example_fish1.jpg` and

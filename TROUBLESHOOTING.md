@@ -25,7 +25,7 @@ The images are found relative to the package, so the folder you run from does no
 ## Fish not appearing
 
 ### The photo never shows up
-1. Check it is a `.jpg`, `.jpeg` or `.heic` file (any capitalisation) inside the `photos` folder next to where you ran the app.
+1. Check it is a `.jpg`, `.jpeg` or `.heic` file (any capitalisation) inside the `photos` folder the startup line names (it is relative to where you ran the app).
 2. Wait a couple of seconds: a file is only scanned once it has stopped growing.
 3. Check the terminal (a photo that loads prints nothing): `Cannot read photo` means the file is corrupt or incomplete; `Markers in the image are not found` means the corner markers were not detected (see below). A photo that fails three times is skipped until the app restarts.
 4. A photo that replaces an existing file with the same name is not rescanned; save it under a new name.

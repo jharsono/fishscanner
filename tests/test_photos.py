@@ -228,3 +228,14 @@ def test_painted_extent_contains_off_centre_paint_when_centred_on_the_sprite():
     canvas[40:70, 120:180, 3] = 255  # Right of centre: columns 120-179 of 200, rows 40-69 of 100
     width, height = painted_extent(canvas)
     assert np.isclose(width, 2 * (180 / 200 - 0.5)) and np.isclose(height, 2 * (70 / 100 - 0.5))
+
+
+def test_startup_load_reports_how_many_fish_it_found(tmp_path: Path, monkeypatch):
+    import main_ocean
+
+    shutil.copy(EXAMPLE, tmp_path / "one.jpg")
+    (tmp_path / "junk.jpg").write_bytes(b"not a jpeg")
+    monkeypatch.setattr(main_ocean, "PHOTOS_DIR", tmp_path)
+    queue: Queue = Queue()
+    assert main_ocean.load_fish_from_files(SimpleScanner(), queue) == 1
+    assert queue.qsize() == 1

@@ -3,6 +3,8 @@
 Skipped where no OpenGL 3.3 window can be created (headless CI).
 """
 
+import warnings
+
 import numpy as np
 import OpenGL.GL as gl
 import pytest
@@ -22,7 +24,10 @@ WIDTH, HEIGHT = main_ocean.WINDOW_SIZE
 def window():
     """The app's own window, hidden; skipped where no OpenGL 3.3 context can be created."""
     glfw = pytest.importorskip("glfw")
-    if not glfw.init():
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # Headless Linux: glfw warns about the missing display before init() fails
+        initialised = glfw.init()
+    if not initialised:
         pytest.skip("glfw could not initialise")
     glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
     try:

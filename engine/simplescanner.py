@@ -25,11 +25,12 @@ class SimpleScanner:
         self.target_h = 600
 
         # A pixel counts as paint when its HSV saturation exceeds the paper's by this margin
-        # (paper noise reaches ~30 above its median on the examples) and its value is above
-        # paint_min_value, which keeps the black markers and dark ink out of the colour mask.
-        # The paper's saturation is measured from the border of the aligned frame, which the
-        # template keeps blank, so warm light or cream paper raises the bar instead of
-        # turning the whole page into "paint".
+        # (paper pixels stay within ~20 of their median on the examples; paint is 150+) and
+        # its value is above paint_min_value, which keeps the black markers and dark ink out
+        # of the colour mask (so a solid dark fill with a cropped outline is not rescued).
+        # The paper's saturation is the median over the border of the aligned frame, which is
+        # mostly paper; fins that reach the border do not move the median. Warm light or
+        # cream paper therefore raises the bar instead of turning the whole page into "paint".
         self.paint_saturation_margin = 50
         self.paint_min_value = 60
         self.paper_border = 30  # Width in pixels of the frame border sampled for paper colour
@@ -207,18 +208,3 @@ class SimpleScanner:
         filtered_frame[alpha == 255, 3] = 255
 
         return filtered_frame
-
-
-"""
-if __name__ == '__main__':
-    scanner = SimpleScanner()
-    files = glob('/home/david/PycharmProjects/FishScanner/photos/*.jpg')
-    for filename in files:
-        frame = cv2.imread(filename)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        processed_frame = scanner.scan(frame)
-        processed_frame = scanner.remove_background(processed_frame)
-
-        cv2.imshow('fish', processed_frame)
-        cv2.waitKey(0)
-"""

@@ -132,7 +132,6 @@ dmypy.json
 # Ignore all photos except examples
 photos/*
 !photos/example_*.jpg
-!photos/README.md
 
 # macOS Finder metadata
 .DS_Store

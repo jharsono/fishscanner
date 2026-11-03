@@ -43,7 +43,7 @@ That's it. No X11, no system OpenGL packages, no logging out.
 4. Add your fish
    - Take a photo of your drawing and save it to the `photos` folder in the directory you run the command from (the repository's own `photos/` if you followed the steps above; it is created if missing)
    - Supported formats: JPG/JPEG and HEIC (iPhone photos)
-   - The fish appears in the ocean a couple of seconds after the file finishes copying; no restart needed. The terminal stays quiet unless something went wrong
+   - The fish appears in the ocean a couple of seconds after the file finishes copying; no restart needed. The terminal prints which folder it is watching at startup and otherwise stays quiet unless something went wrong
    - Photos already in the folder are loaded at startup
 
 ## Controls
