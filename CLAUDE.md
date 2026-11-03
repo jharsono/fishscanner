@@ -14,7 +14,7 @@ The only entry point is `main_ocean.py` (console script `fishscanner`).
 uv sync                    # creates .venv from pyproject.toml + uv.lock (Python >= 3.11)
 uv run fishscanner         # runs the app (native glfw window, no X11)
 uv run pytest              # all tests; GL tests render into a hidden window and skip where none can be created
-uv run ruff check . && uv run ruff format --check . && uv run pyright   # the CI gates
+uv run ruff check . && uv run ruff format --check . && uv run pyright   # the CI gates (Ubuntu only; GL tests run locally)
 ```
 
 Run everything with `PYTHONDONTWRITEBYTECODE=1` when mutating source during a test session: a same-length edit restored within one second can leave a stale `.pyc` in use. `setup.sh` and `run.sh` are the pre-glfw installers (XQuartz, freeglut) and are kept only until the docs are rewritten.
