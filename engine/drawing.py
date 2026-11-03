@@ -59,7 +59,7 @@ class Drawing:
         self._texid = texid
         self._shader = shader
         self._time_counter = 0.0
-        self._mesh = self._mesh_for(grid_x, grid_y)
+        self._grid = (grid_x, grid_y)
 
     @property
     def texid(self) -> int:
@@ -82,9 +82,10 @@ class Drawing:
         # If timer came to border - go back
         if self._time_counter >= self.max_animation_timer or self._time_counter <= 0:
             self.step_animation_timer = -self.step_animation_timer
+        mesh = self._mesh_for(*self._grid)  # Created on first render, so sprites need no GL context to exist
         gl.glBindTexture(gl.GL_TEXTURE_2D, self._texid)
-        gl.glBindVertexArray(self._mesh.vao)
-        gl.glDrawArrays(gl.GL_TRIANGLES, 0, self._mesh.vertex_count)
+        gl.glBindVertexArray(mesh.vao)
+        gl.glDrawArrays(gl.GL_TRIANGLES, 0, mesh.vertex_count)
         gl.glBindVertexArray(0)
         gl.glUseProgram(0)
 

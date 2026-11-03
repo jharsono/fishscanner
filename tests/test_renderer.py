@@ -46,6 +46,12 @@ def read_pixel(x: int, y: int) -> tuple[int, ...]:
     return tuple(np.frombuffer(data, dtype=np.uint8))
 
 
+def read_frame() -> np.ndarray:
+    data = gl.glReadPixels(0, 0, WIDTH, HEIGHT, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE)
+    assert isinstance(data, bytes)
+    return np.frombuffer(data, dtype=np.uint8).reshape(HEIGHT, WIDTH, 4)
+
+
 def solid_texture(rgba: tuple[int, int, int, int]) -> int:
     return Renderer.create_texture(np.full((2, 2, 4), rgba, dtype=np.uint8))
 
@@ -138,3 +144,22 @@ def test_wide_window_crops_height_beyond_max_aspect(window):
     renderer.resize(800, 600)  # Aspect 1.33 is under the limit: unchanged behaviour
     assert np.isclose(to_clip(renderer, 800 / 600, 1.0)[0], 1.0)
     assert np.isclose(to_clip(renderer, 0.0, 1.0)[1], -1.0)
+
+
+def test_bubbles_attached_to_a_fish_are_drawn(renderer):
+    from ocean import IMAGES_DIR
+    from ocean.drawingbubble import DrawingBubble
+    from ocean.drawingfish import DrawingFish
+
+    fish = DrawingFish(solid_texture((255, 0, 0, 255)))
+    fish.position = np.array([-1.0, 0.8, 0.0])  # Out of the way, bottom left
+    fish.scale = np.array([0.1, 0.1, 1.0])
+    renderer.render([fish])
+    without_bubble = read_frame()
+
+    bubble = DrawingBubble(Renderer.create_texture_from_file(IMAGES_DIR / "bubble.png"), start_x=0.0, start_y=0.0)
+    bubble.scale = np.array([0.5, 0.5, 1.0])
+    fish._bubbles.append(bubble)
+    renderer.render([fish])
+    changed = (read_frame() != without_bubble).any(axis=2)
+    assert changed.sum() > 1000, "the bubble left no visible pixels"

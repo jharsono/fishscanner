@@ -109,9 +109,7 @@ class DrawingFish(Drawing):
             self._bubbles.append(bubble)
 
         # delete bubbles when they left the screen
-        for bubble in self._bubbles:
-            if bubble.position[1] < -1:
-                self._bubbles.remove(bubble)
+        self._bubbles = [bubble for bubble in self._bubbles if bubble.position[1] >= -1]
 
     def animation(self) -> None:
         """
