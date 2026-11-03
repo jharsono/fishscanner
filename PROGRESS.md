@@ -1,7 +1,7 @@
 # Progress (Gauntlet Loop)
 
-Current target: Part 4 critic; PRs #16 (docs) and #17 (py3.14 pyright) awaiting merge; macOS CI runners time out in queue
-Completed parts: Part 0 (critic PASS); Part 1 (critic conditional PASS, wheel fix applied); Part 3 (round 2 critic PASS, leftovers applied)
+Current target: merge #16 (docs), then the integration critic on main
+Completed parts: 0, 1, 2, 3, 4, 5, 7, 8, 9 merged to main on 2026-11-03; 6 merging
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
   one second with same-length edits: stale .pyc kept the mutation alive.
@@ -56,9 +56,14 @@ git (pre-existing, unrelated to any part; needs Josh's OK to untrack).
 Decisions 2026-11-03: XQuartz capture skipped (Josh ran Part 2 and judged
 it good; A/B replaced by his check); window made resizable at his request
 (cover camera beyond the backgrounds' aspect); bubbles restored.
-Blocked on Josh: enabling workflows on the forked repo (Actions tab
-button) so CI runs on the PRs; two new fish photos for Part 4; "go" for
-Part 6 (docs, delete setup.sh/run.sh).
+CI: workflows only run once the workflow file is on the default branch;
+the merges to main queued the first runs (no fork "enable" button was
+needed). Still blocked on Josh: two new fish photos for Part 4.
+- Part 6: branch modernize/part-6-docs; README and TROUBLESHOOTING rewritten
+  for uv + glfw, setup.sh/run.sh/requirements.txt deleted, CLAUDE.md
+  architecture rewritten for Parts 7-9. Critic round 1: PASS; its finding
+  that the scanner weights blue where it says red is parked for Part 4.
+  Tracked .DS_Store files untracked so the new ignore rule applies.
 - Part 7: branch modernize/part-7-depth (stacked on Part 5); fish distance
   cycle (shrink to 45%, half speed, dim, z back). Critic round 1: FAIL, the
   far fish painted over the near one because the transparent pass drew
@@ -97,8 +102,7 @@ CI: Ubuntu cells pass. macOS cells are mostly cancelled by GitHub after
 ~15 min in queue with zero steps (two did run: 3.11 passed fully, 3.14 hit
 the pyright issue fixed in PR #17). Decision needed: keep macOS in the
 matrix and tolerate the queue, or drop it.
-Next action: Part 4 critic; merge #17, rebase and merge #16, then the
-integration critic on main.
-Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7, 1 on Part 9); approvals
+Next action: integration critic on main after #16 merges.
+Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7, 1 on Part 9, 1 on Part 6, 2 on Part 4); approvals
 pending on Python floor, requirements.txt, GL approach, XQuartz reference
 capture, and pushing branches for CI; no push.

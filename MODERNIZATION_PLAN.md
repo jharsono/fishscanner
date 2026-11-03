@@ -255,7 +255,7 @@ would need a forbidden action; or a critic cannot judge without a human
 
 1. Rendering: modern-GL rewrite, not legacy GL in a 2.1 context.
 2. Python floor: 3.11.
-3. `requirements.txt`: kept for now (not yet ruled on).
+3. `requirements.txt`: dropped in Part 6; it had drifted from pyproject.toml.
 4. One-time XQuartz install for reference capture: approved. The cask's
    `.pkg` needs sudo, so Josh runs `brew install --cask xquartz` himself.
 5. Pushing branches and opening PRs: approved.

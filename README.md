@@ -1,39 +1,31 @@
 # FishScanner
 
-A magical application that brings your fish drawings to life in a virtual ocean! Draw a fish on paper, scan it, and watch it swim around with other fish in a beautiful underwater world. 
+A magical application that brings your fish drawings to life in a virtual ocean! Draw a fish on paper, photograph it, and watch it swim around with other fish in a beautiful underwater world.
 
-This project is based on the wonderful work by [David Svitov](https://github.com/david-svitov/fishscanner), who created the original FishScanner. This version extends his creative vision to add support for HEIC images (from iPhones), live updates so you can add new fish without restarting the app, improve background detection, and make the experience even more delightful.
+This project is based on the wonderful work by [David Svitov](https://github.com/david-svitov/fishscanner), who created the original FishScanner. This version extends his creative vision with HEIC support (iPhone photos), live updates so you can add new fish without restarting, fish that swim into the distance and back, a native window that needs no X11, and a tested, modern Python stack.
 
 > Forked from [david-svitov/fishscanner](https://github.com/david-svitov/fishscanner)
 
 ![Run example](./images/img1.png)
 
-> **🎉 2024 Update: Major Improvements!**
->
-> A new and modernized FishScanner with:
-> - **🚀 One-Click Setup**: Just run `./setup.sh` and you're ready to go
-> - **📱 Apple Silicon Support**: Native support for M1/M2 Macs
-> - **🎮 Better Graphics**: Enhanced OpenGL integration and rendering
-> - **🔄 Modern Stack**: Updated to Python 3.11 and latest OpenCV
-> - **🪄 Live Updates**: Fish appear instantly when you add photos - no restart needed!
-> - **🛠 Improved Reliability**: Better error handling and troubleshooting
+Inspired by this [video](https://www.youtube.com/watch?v=ILrr8vToR9Y&feature=emb_logo) from Workinman Interactive LLC.
 
-Bring your fish drawings to life in a virtual aquarium! This project is inspired by this [video](https://www.youtube.com/watch?v=ILrr8vToR9Y&feature=emb_logo) from Workinman Interactive LLC.
+## Installation
 
-## Installation (macOS)
+You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). On macOS: `brew install uv`.
 
 ```bash
 git clone https://github.com/jharsono/fishscanner.git
 cd fishscanner
-./setup.sh
-
-# Important: Log out and log back in after installation
+uv sync
 ```
+
+That's it. No X11, no system OpenGL packages, no logging out.
 
 ## How to Use
 
 1. Print a template
-   - Choose any template from `ocean/patterns/fish_1.pdf` through `fish_5.pdf`
+   - Choose any template from `ocean/patterns/fish_1.pdf` through `fish_5.pdf`, or `blank.pdf` to draw your own shape
    - Each template has special markers in the corners for detection
    ![Scan example](./images/img2.jpg)
 
@@ -42,110 +34,55 @@ cd fishscanner
    - Keep your drawing inside the marked area
    - Make sure the corner markers stay visible
 
-3. Add your fish
-   - Take a photo of your drawing and save it to the `photos` folder
-   - Supported formats: JPG and HEIC (iPhone photos)
-   - The fish will appear automatically in the ocean!
-   - Run the app: `./run.sh`
+3. Run the app
+
+   ```bash
+   uv run fishscanner
+   ```
+
+4. Add your fish
+   - Take a photo of your drawing and save it to the `photos` folder in the directory you run the command from (the repository's own `photos/` if you followed the steps above; it is created if missing)
+   - Supported formats: JPG/JPEG and HEIC (iPhone photos)
+   - The fish appears in the ocean a couple of seconds after the file finishes copying; no restart needed. The terminal stays quiet unless something went wrong
+   - Photos already in the folder are loaded at startup
 
 ## Controls
 
-- **Arrow Keys**: Use left and right arrow keys to switch between different ocean scenes
-- **ESC**: Exit the application
+- **Left / Right arrows**: switch between ocean scenes
+- **ESC**: exit
+- The window can be resized
 
-## 2024 Changes
+## How it works
 
-### Core Improvements
-- **Enhanced Fish Detection**:
-  - Improved edge preservation using gradient-based detection
-  - Better handling of red ink details (60% weighting vs standard 30%)
-  - Optimized AR marker boundaries with padding and smooth transitions
-  - Reduced marker interference using smaller detection areas (110px)
+- Photos are scanned with OpenCV: the four ArUco markers locate the page, the drawing is warped flat and its background removed.
+- The aquarium is drawn with OpenGL 3.3 in a glfw window. Fish swim, turn at the edges, blow bubbles, and drift into the distance and back.
+- A background thread watches `photos/` and only scans a file once it has stopped growing, so a photo still being copied is never read half-written.
 
-### Technical Updates
-- **Modernized Graphics Pipeline**:
-  - Enhanced OpenGL integration with proper GLUT initialization
-  - Improved state management and vertex array handling
-  - Better performance with efficient filesystem monitoring
-  - Updated dependencies for cross-platform compatibility
+## Platform notes
 
-### User Experience
-- **Streamlined Setup**:
-  - One-click installation script
-  - Automatic dependency management
-  - Native Apple Silicon support
-- **Real-time Updates**:
-  - Instant fish appearance when photos are added
-  - No app restart needed for new additions
-  - Comprehensive error handling and troubleshooting
+Developed and tested on macOS (Apple Silicon). Every dependency ships as a wheel for Windows and Linux too, and the app only needs an OpenGL 3.3 capable driver, so it should run there as well.
 
-## Platform Compatibility
-
-FishScanner is compatible with:
-- macOS (both Apple Silicon and Intel)
-- Windows
-- Linux
-
-### Platform-Specific Notes
-
-#### macOS
-- Works on both Apple Silicon (M1/M2) and Intel processors
-- No additional configuration needed
-
-#### Windows
-- Requires OpenGL drivers (typically pre-installed)
-- May need to install Microsoft Visual C++ Redistributable if not already present
-
-#### Linux
-- Requires OpenGL development libraries
-  ```bash
-  # Ubuntu/Debian
-  sudo apt-get install python3-opengl
-  sudo apt-get install libglfw3
-  ```
-
-All core dependencies (numpy, OpenCV, PyOpenGL, etc.) are cross-platform compatible.
+- **Linux**: OpenCV needs `libgl1` and `libglib2.0-0` (`sudo apt-get install libgl1 libglib2.0-0`).
 
 ## Troubleshooting
 
-Having issues? Check these common solutions:
+See the [Troubleshooting Guide](TROUBLESHOOTING.md).
 
-1. **First time setup fails**
-   - Make sure you're connected to the internet
-   - Try running the commands in the [Manual Setup](#manual-setup) section
+## Development
 
-2. **App doesn't start**
-   - Make sure you logged out and back in after installation
-   - Try running `open -a XQuartz` manually
-
-For detailed solutions to these and other issues, see our [Troubleshooting Guide](TROUBLESHOOTING.md).
-
-## Manual Setup
-
-If you prefer manual installation or the setup script fails:
-
-1. Install system dependencies:
 ```bash
-brew install glfw python@3.11 freeglut
-brew install --cask xquartz
+uv run pytest              # tests, including OpenGL smoke tests in a hidden window
+uv run ruff check .        # lint
+uv run ruff format .       # format
+uv run pyright             # type check
 ```
 
-2. Set up Python:
-```bash
-python3.11 -m venv venv
-source venv/bin/activate
-python3 -m pip install -r requirements.txt
-```
-
-3. Configure environment:
-```bash
-echo "export DISPLAY=:0" >> ~/.zshrc
-# Log out and log back in
-```
+The same checks run in GitHub Actions on Ubuntu (Python 3.11 and 3.14); the OpenGL tests skip there and run locally on a Mac.
 
 ## Project Structure
 
 - `ocean/patterns/`: Fish templates for printing
-- `photos/`: Place your scanned fish drawings here
-- `engine/`: Core application code
-- `ocean/`: Example aquarium implementation
+- `photos/`: Place your fish photos here (only the two examples are tracked in git)
+- `engine/`: Scanner, photo ingestion, renderer, shaders
+- `ocean/`: The aquarium scene: fish, bubbles, seaweed and image assets
+- `main_ocean.py`: The application: window, scenes, main loop
