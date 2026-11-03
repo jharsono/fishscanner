@@ -49,6 +49,12 @@ being copied) produces a swimming fish within 5 seconds. `ruff`, `pyright` and
 
 ## Reference for quality (the bar)
 
+Decision 2026-11-03: Josh skipped the XQuartz capture after running the Part 2
+build himself and judging it good ("part 2 looks good"). His visual check
+stands in for the blind A/B in Parts 2 and 5; critics compare against the
+README screenshot and the raw assets instead. The capture steps below are
+kept for the record only.
+
 Capture these BEFORE any code changes, in one setup session that Josh
 approves because it installs system packages:
 1. Install XQuartz + freeglut once, run the current app, screenshot each scene
@@ -163,6 +169,20 @@ instructions.
 Critic: a fresh reader follows README only, on a clean Mac, and gets a
 swimming fish. Every command in the docs is executed, not read.
 
+### Part 7: Fish swim into the distance  (depends on Part 5; requested by Josh 2026-11-03)
+Builder: each swimming fish follows a slow cosine distance cycle with a
+random period (10-25 s). At the far point it is drawn at 45% of its size,
+moves at half pace, is tinted down to 70% and sits at z = -0.5 so nearer
+fish draw in front; it then grows back to its original size. The cycle
+starts at zero distance when the entry animation ends, so there is no
+jump; facing direction is kept apart from scale so shrinking never flips a
+fish.
+Critic: headless tests for the cycle, size return, facing and
+slower/dimmer/behind at the far point; a rendered contact sheet across one
+cycle with two fish out of phase, judged for a convincing "into the
+distance" look and for the far fish drawing behind the near one.
+Success: tests pass and Josh judges the motion natural in the running app.
+
 ## Integration critic (final, fresh context)
 
 Fresh clone, `uv sync`, `uv run fishscanner`, drop one JPG and one HEIC,
@@ -200,3 +220,6 @@ would need a forbidden action; or a critic cannot judge without a human
    `.pkg` needs sudo, so Josh runs `brew install --cask xquartz` himself.
 5. Pushing branches and opening PRs: approved.
 6. Part 4 photos: Josh supplies two new fish photos.
+7. XQuartz reference capture: skipped; Josh's visual check of the Part 2
+   build replaces the A/B.
+8. Bubbles not rendering was unintentional; restored in Part 5.
