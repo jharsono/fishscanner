@@ -5,6 +5,7 @@ checked. Golden alpha masks live in tests/golden/. Regenerate them
 deliberately with tests/make_golden.py only when a scanner change is meant to
 alter the mask.
 """
+
 import cv2
 import numpy as np
 import pytest
