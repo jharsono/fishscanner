@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: waiting on Josh (decisions for Parts 2 and 4, push approval for CI)
+Current target: Part 2 critic round 1 (A/B against old-build references pending XQuartz install)
 Completed parts: Part 0 (critic PASS); Part 1 (critic conditional PASS, wheel fix applied); Part 3 (round 2 critic PASS, leftovers applied)
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
@@ -37,7 +37,17 @@ git (pre-existing, unrelated to any part; needs Josh's OK to untrack).
   Behaviour change to confirm with Josh: fish present at startup now appear
   over the first few frames (one per animation tick) instead of before the
   first frame, because startup and the watcher share one queue.
-Next action: Part 2 once Josh picks the GL approach and approves the XQuartz reference capture; Part 4 once Josh supplies two photos.
-Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3); approvals
+- Part 2: branch modernize/part-2-modern-gl (stacked on Part 3); glfw window
+  with a 3.3 core forward-compatible context (macOS hands back 4.1), VAO
+  meshes shared per grid size, GLSL 3.30 programs built from a per-sprite
+  transform function, numpy matrices, Resources registry, fixed-step loop;
+  34 tests pass including GL smoke tests in a hidden window; all gates exit 0;
+  hidden-window screenshots of all three scenes look right.
+Blocked on Josh: XQuartz install (sudo) for old-build reference capture;
+enabling workflows on the forked repo (Actions tab button) so CI runs on
+PRs #7-#10; two new fish photos for Part 4.
+Next action: Part 2 critic on everything judgeable without references; A/B
+once references exist.
+Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 0 on Part 2); approvals
 pending on Python floor, requirements.txt, GL approach, XQuartz reference
 capture, and pushing branches for CI; no push.

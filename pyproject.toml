@@ -45,7 +45,3 @@ select = ["E", "F", "W", "I", "B", "UP"]
 include = ["engine", "ocean", "main_ocean.py", "tests"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
-# cleanup_and_exit in main_ocean.py stores GL handles as attributes on the
-# function object; replacing that with a resource registry is Part 2 of
-# MODERNIZATION_PLAN.md, after which this suppression goes away.
-reportFunctionMemberAccess = false

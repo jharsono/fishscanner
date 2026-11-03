@@ -1,4 +1,5 @@
 from engine.drawing import Drawing
+from engine.shaders import ShaderProgram
 
 
 class DrawingStatic(Drawing):
@@ -11,13 +12,13 @@ class DrawingStatic(Drawing):
         texid: int,
         grid_x: int = 5,
         grid_y: int = 5,
-        shader: int = 0,
+        shader: ShaderProgram | None = None,
     ):
         """
         Initialize seaweed as default sprite. All the magic happens in the shader
         :param texid: ID of texture
         :param grid_x: Mesh elements along axis X
         :param grid_y: Mesh elements along axis Y
-        :param shader: ID of shader. Select 0 if you need no shader
+        :param shader: Sprite program, or None for the renderer's default
         """
         super().__init__(texid, grid_x, grid_y, shader)
