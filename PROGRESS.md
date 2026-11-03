@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: merge #16 (docs), then the integration critic on main
+Current target: Parts 11 (no z pass-through) and 12 (fluid turns) requested by Josh; #20 and #21 await merge
 Completed parts: 0, 1, 2, 3, 4, 5, 7, 8, 9 merged to main on 2026-11-03; 6 merging
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
@@ -102,7 +102,19 @@ CI: Ubuntu cells pass. macOS cells are mostly cancelled by GitHub after
 ~15 min in queue with zero steps (two did run: 3.11 passed fully, 3.14 hit
 the pyright issue fixed in PR #17). Decision needed: keep macOS in the
 matrix and tolerate the queue, or drop it.
-Next action: integration critic on main after #16 merges.
+- Part 10: branch modernize/part-10-temperament (from main); per-fish tempo,
+  rest/cruise/burst effort with eased transitions, tail phase and swing per
+  fish through a new `params` uniform. Critic round 1: PASS; its leftovers
+  applied: unused `time` uniform plumbing removed, a re-pick always changes
+  gear, beat damping documented. 71 tests; gates 0. Josh reported "fish
+  didn't seem to load" on this branch; headless startup from the same
+  folder loads all three photos (including his 4032x3024 IMG_3348.JPG, scan
+  0.16 s) and renders them, so not reproduced; awaiting details.
+Part 4 round 2 critic: PASS (cast sweep never breaks). Noted for a small
+follow-up: the corner mask leaves a ~20 px ring of a touched marker; two
+comment wordings in simplescanner.py overstate paper noise and a blank
+border.
+Next action: Part 10 critic; integration critic verdict.
 Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7, 1 on Part 9, 1 on Part 6, 2 on Part 4); approvals
 pending on Python floor, requirements.txt, GL approach, XQuartz reference
 capture, and pushing branches for CI; no push.

@@ -223,6 +223,23 @@ Critic: run the tests against the old bounce (must fail with hundreds of
 flips); drive many seeded fish through full entry animations and confirm
 none spins more than once per wall contact.
 
+### Part 10: Temperament  (requested by Josh 2026-11-03)
+Josh: "the tail animation should have more ebb-and-flow, uniqueness per
+fish, and fish should move at different speeds and oscillate between slow
+and fast depending on their objective (hunting or fleeing)."
+Builder: each fish gets a random `tempo` (0.8-1.25) scaling its speed and
+tail beat; an `effort` level that drifts between rest (0.45), cruise (1.0)
+and burst (1.9), re-chosen every 2-7 s and eased over about a second; speed
+= vector x distance factor x effort; the tail beat phase is accumulated per
+fish from tempo and effort and passed to the shader through a new
+per-sprite `params` uniform (phase, peak swing), replacing the global clock
+phase; a fish told to leave bursts (flees).
+Critic: headless tests for distinct tempos, bounded and eased effort that
+actually changes, speed and beat following effort, fleeing; a GL test that
+the beat still only foreshortens; a 30 s simulation showing fish out of
+phase and at different efforts.
+Success: tests pass and Josh judges the variety natural in the app.
+
 ## Integration critic (final, fresh context)
 
 Fresh clone, `uv sync`, `uv run fishscanner`, drop one JPG and one HEIC,

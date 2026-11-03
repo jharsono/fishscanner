@@ -8,20 +8,29 @@ from ocean.drawingbubble import DrawingBubble
 
 # Tail beat as seen from the side. A fish swings its tail sideways, out of the picture plane,
 # so on screen the tail foreshortens toward the body rather than bending up and down. The
-# swing grows toward the tail tip and travels along the body; each fish is offset by its world
-# x so they do not beat in unison.
+# swing grows toward the tail tip and travels along the body. params.x is the fish's own beat
+# phase (advanced in animation() from its tempo and effort) and params.y the peak swing.
 FISH_TRANSFORM = """
-const float TAIL_BEAT_HZ = 1.6;
-const float TAIL_SWING = 0.6;   // Peak swing at the tail tip, radians (about 35 degrees)
 const float TAIL_START = 0.1;   // Sprite x where the flexible tail begins; the head is toward +x
 vec4 transform(vec3 p) {
     float tail = clamp((TAIL_START - p.x) / (TAIL_START + 0.5), 0.0, 1.0);
-    float phase = 6.2832 * TAIL_BEAT_HZ * time + model[3][0] * 7.0 - tail * 2.0;
-    float swing = TAIL_SWING * tail * tail * sin(phase);
+    float swing = params.y * tail * tail * sin(params.x - tail * 2.0);
     float x = TAIL_START + (p.x - TAIL_START) * cos(swing);
     return model * vec4(x, p.y, p.z, 1.0);
 }
 """
+
+# Swimming effort. A fish drifts between resting, cruising and bursting (hunting or fleeing),
+# easing from one level to the next; its speed and tail beat follow. tempo is a per-fish
+# multiplier on both, so no two fish move alike.
+EFFORT_LEVELS = {"rest": 0.45, "cruise": 1.0, "burst": 1.9}
+EFFORT_WEIGHTS = [0.3, 0.5, 0.2]
+TICKS_PER_SECOND = 60  # Animation ticks per second, matching main_ocean.TICK_SECONDS
+EFFORT_DWELL_TICKS = (2 * TICKS_PER_SECOND, 7 * TICKS_PER_SECOND)
+EFFORT_EASING = 0.04  # Fraction of the remaining change applied per tick (about a second to settle)
+TEMPO_RANGE = (0.8, 1.25)
+TAIL_BEAT_HZ = 1.6  # Beat rate at cruise effort and tempo 1
+TAIL_SWING = 0.6  # Peak swing at the tail tip at cruise, radians (about 35 degrees)
 
 
 # A swimming fish cycles between near and far. At the far point it is drawn at FAR_SCALE of its
@@ -106,6 +115,13 @@ class DrawingFish(Drawing):
         self._distance = 0.0
         self._speed_factor = 1.0
 
+        # Temperament
+        self.tempo = np.random.uniform(*TEMPO_RANGE)
+        self.effort = EFFORT_LEVELS["cruise"]
+        self._effort_target = self.effort
+        self._effort_ticks_left = np.random.randint(*EFFORT_DWELL_TICKS)
+        self._tail_phase = 0.0
+
         # To animate bubbles
         self._bubble_texture_id = bubble_texture_id
         self._bubble_random_frequency = 2
@@ -149,7 +165,9 @@ class DrawingFish(Drawing):
         Logic of movement of the fish
         :return:
         """
-        self.position += self.vector * self._speed_factor
+        self._update_effort()
+        self._beat_tail()
+        self.position += self.vector * self._speed_factor * self.effort
         self._process_bubbles()
 
         if self._animation_stage == "init":
@@ -190,6 +208,37 @@ class DrawingFish(Drawing):
             if self.position[0] > self._right + 1.0 or self.position[0] < self._left - 1.0:
                 self.is_alive = False
 
+    def _update_effort(self) -> None:
+        """
+        Pick a new effort level now and then, and ease toward the current one
+        :return:
+        """
+        if self._animation_stage == "swim":
+            self._effort_ticks_left -= 1
+            if self._effort_ticks_left <= 0:
+                # Always change gear: re-picking the current level would leave a fish static for two dwells
+                others = [
+                    (level, weight)
+                    for level, weight in zip(EFFORT_LEVELS.values(), EFFORT_WEIGHTS, strict=True)
+                    if level != self._effort_target
+                ]
+                weights = np.array([weight for _, weight in others]) / sum(weight for _, weight in others)
+                self._effort_target = others[np.random.choice(len(others), p=weights)][0]
+                self._effort_ticks_left = np.random.randint(*EFFORT_DWELL_TICKS)
+        self.effort += (self._effort_target - self.effort) * EFFORT_EASING
+
+    def _beat_tail(self) -> None:
+        """
+        Advance the tail beat: faster and wider the harder the fish works
+        :return:
+        """
+        # Damped on purpose: a bursting fish (effort 1.9) beats 1.45x faster and 1.36x wider,
+        # not 1.9x, which would look frantic; a resting one still beats at 0.73x
+        rate = TAIL_BEAT_HZ * self.tempo * (0.5 + 0.5 * self.effort)
+        self._tail_phase += 2 * math.pi * rate / TICKS_PER_SECOND
+        self.shader_params[0] = self._tail_phase
+        self.shader_params[1] = TAIL_SWING * (0.6 + 0.4 * self.effort)
+
     def _apply_distance(self, distance: float) -> None:
         """
         Shrink, slow, dim and push back the fish according to how far away it is
@@ -217,4 +266,5 @@ class DrawingFish(Drawing):
         self.vector[1] = 0.0
         self.vector[0] *= 2
         self._speed_factor = 1.0  # Leave at full pace whatever the distance was
+        self._effort_target = EFFORT_LEVELS["burst"]  # Flee
         self._animation_stage = "finish"

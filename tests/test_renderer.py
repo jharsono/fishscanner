@@ -196,8 +196,10 @@ def test_fish_tail_beat_foreshortens_width_but_never_moves_height(renderer):
     fish._speed_factor = 0.0
     clear = (26, 26, 51)
     boxes = []
-    for t in np.linspace(0.0, 0.6, 7):  # Roughly one beat
-        renderer.render([fish], time=float(t))
+    fish.shader_params[1] = 0.6  # Peak swing
+    for phase in np.linspace(0.0, 2 * np.pi, 7):  # One beat
+        fish.shader_params[0] = phase
+        renderer.render([fish])
         boxes.append(silhouette_box(read_frame(), clear))
     heights = {y1 - y0 for _, _, y0, y1 in boxes}
     widths = {x1 - x0 for x0, x1, _, _ in boxes}
