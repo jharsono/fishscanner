@@ -165,12 +165,20 @@ class DrawingFish(Drawing):
             self._apply_distance(distance_cycle(self._depth_tick, self._depth_period))
             self._depth_tick += 1
 
-            # If we near border go to the other direction
-            if self.position[0] > self._right or self.position[0] < self._left:
+            # Beyond a border and still heading out: turn around once. Checking the heading
+            # matters because a fish can start swimming already past a border (a long entry
+            # overshoots), and flipping on position alone would turn it every tick forever.
+            heading_out_x = (self.position[0] > self._right and self.vector[0] > 0) or (
+                self.position[0] < self._left and self.vector[0] < 0
+            )
+            if heading_out_x:
                 self.vector[0] = -self.vector[0]
                 self.rotation_vector[1] = 5.0
 
-            if self.position[1] < self._top or self.position[1] > self._bottom:
+            heading_out_y = (self.position[1] > self._bottom and self.vector[1] > 0) or (
+                self.position[1] < self._top and self.vector[1] < 0
+            )
+            if heading_out_y:
                 self.vector[1] = -self.vector[1]
 
             self.rotate[1] = (self.rotate[1] + self.rotation_vector[1]) % 360

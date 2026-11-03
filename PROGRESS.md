@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: Josh judges Parts 7 and 8 in the running app; Part 6 awaits go
+Current target: Part 9 (turning loop) critic; Josh judges Parts 7 and 8
 Completed parts: Part 0 (critic PASS); Part 1 (critic conditional PASS, wheel fix applied); Part 3 (round 2 critic PASS, leftovers applied)
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
@@ -71,6 +71,13 @@ Part 6 (docs, delete setup.sh/run.sh).
 - Part 8: branch modernize/part-8-tail-beat (stacked on Part 7); Josh found
   the y-sine body wave unnatural; replaced by a time-driven tail beat that
   foreshortens the tail horizontally and never moves it vertically.
+- Part 9: branch modernize/part-9-turn-loop (stacked on Part 8); fish that
+  began swimming beyond a border flipped every tick and spun in place (Josh
+  saw it on fish 2); the bounce now requires an outward heading. Old code
+  fails the new tests with 600 flips in 600 ticks. Critic round 1: PASS.
+  Noted for a later part: a vertical-entry fish with the random horizontal
+  nudge can start swimming up to |x| ~3.3, off screen for 8-12 s (0.2% of
+  entries).
 - Part 5: branch modernize/part-5-animation (stacked on Part 2); FixedStepClock
   extracted and tested (tick count identical at 30/60/144 Hz frames, stall
   cap), bubble removal no longer mutates the list it iterates (mutation
@@ -82,6 +89,6 @@ Part 6 (docs, delete setup.sh/run.sh).
   Critic round 1: PASS (30 vs 60 Hz identical, irregular frames within 0.3%).
 Next action: Part 2 critic on everything judgeable without references; A/B
 once references exist; Part 5 critic after Part 2 passes.
-Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7); approvals
+Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7, 1 on Part 9); approvals
 pending on Python floor, requirements.txt, GL approach, XQuartz reference
 capture, and pushing branches for CI; no push.
