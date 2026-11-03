@@ -163,3 +163,17 @@ def test_bubbles_attached_to_a_fish_are_drawn(renderer):
     renderer.render([fish])
     changed = (read_frame() != without_bubble).any(axis=2)
     assert changed.sum() > 1000, "the bubble left no visible pixels"
+
+
+def test_near_fish_is_drawn_in_front_of_far_fish(renderer):
+    from ocean.drawingfish import DrawingFish
+
+    near = DrawingFish(solid_texture((255, 0, 0, 255)))
+    far = DrawingFish(solid_texture((0, 0, 255, 255)))
+    for fish in (near, far):
+        fish.position = np.array([0.0, 0.0, 0.0])
+        fish.scale = np.array([1.0, 0.75, 0.3])
+    far.position[2] = -0.5
+    for order in ([near, far], [far, near]):
+        renderer.render(order)
+        assert read_pixel(WIDTH // 2, HEIGHT // 2)[:3] == (255, 0, 0), f"far fish drawn on top with order {order}"

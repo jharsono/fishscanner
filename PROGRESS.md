@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: Parts 2 and 5 critic PASS (A/B pending references); Part 4 and Part 6 next
+Current target: Part 7 critic round 2; Part 8 (tail beat) build
 Completed parts: Part 0 (critic PASS); Part 1 (critic conditional PASS, wheel fix applied); Part 3 (round 2 critic PASS, leftovers applied)
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
@@ -53,9 +53,21 @@ git (pre-existing, unrelated to any part; needs Josh's OK to untrack).
   file in Scene, with a test that fails against the uncached loader (54 vs
   21 textures). Fish wave is in world space on purpose (documented in the
   plan). Bubbles not rendering since commit 172395b was unintentional (Josh); fixed in Part 5.
-Blocked on Josh: XQuartz install (sudo) for old-build reference capture;
-enabling workflows on the forked repo (Actions tab button) so CI runs on
-PRs #7-#10; two new fish photos for Part 4.
+Decisions 2026-11-03: XQuartz capture skipped (Josh ran Part 2 and judged
+it good; A/B replaced by his check); window made resizable at his request
+(cover camera beyond the backgrounds' aspect); bubbles restored.
+Blocked on Josh: enabling workflows on the forked repo (Actions tab
+button) so CI runs on the PRs; two new fish photos for Part 4; "go" for
+Part 6 (docs, delete setup.sh/run.sh).
+- Part 7: branch modernize/part-7-depth (stacked on Part 5); fish distance
+  cycle (shrink to 45%, half speed, dim, z back). Critic round 1: FAIL, the
+  far fish painted over the near one because the transparent pass drew
+  nearest-first with depth writes off; fixed by drawing transparent sprites
+  farthest-first, with a pixel test. Bubbles now inherit the fish's
+  distance; a fish leaving from the far point exits at full pace. 55 tests.
+- Part 8: branch modernize/part-8-tail-beat (stacked on Part 7); Josh found
+  the y-sine body wave unnatural; replaced by a time-driven tail beat that
+  foreshortens the tail horizontally and never moves it vertically.
 - Part 5: branch modernize/part-5-animation (stacked on Part 2); FixedStepClock
   extracted and tested (tick count identical at 30/60/144 Hz frames, stall
   cap), bubble removal no longer mutates the list it iterates (mutation
@@ -67,6 +79,6 @@ PRs #7-#10; two new fish photos for Part 4.
   Critic round 1: PASS (30 vs 60 Hz identical, irregular frames within 0.3%).
 Next action: Part 2 critic on everything judgeable without references; A/B
 once references exist; Part 5 critic after Part 2 passes.
-Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5); approvals
+Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 1 on Part 7); approvals
 pending on Python floor, requirements.txt, GL approach, XQuartz reference
 capture, and pushing branches for CI; no push.

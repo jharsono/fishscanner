@@ -62,9 +62,10 @@ class Renderer:
             if not drawing.is_transparent:
                 drawing.render(self.projection, self.default_shader)
 
-        # Second pass: render transparent objects
+        # Second pass: render transparent objects farthest first, so nearer ones paint over them
+        # (they do not write depth, so draw order is what decides which one shows)
         gl.glDepthMask(gl.GL_FALSE)  # Don't write to depth buffer for transparent objects
-        for drawing in sorted_drawings:
+        for drawing in reversed(sorted_drawings):
             if drawing.is_transparent:
                 drawing.render(self.projection, self.default_shader)
 
