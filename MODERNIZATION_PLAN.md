@@ -68,9 +68,12 @@ builder's reasoning.
 
 ### Part 0: Golden fixtures and scanner regression test  (prerequisite)
 Builder: add `tests/test_scanner.py` using the two example photos; store golden
-masks; assert IoU ≥ 0.99 and output shape `(600, 800, 4)`.
+masks; assert at most 100 differing alpha pixels (the pipeline is
+deterministic; a one-pixel boundary shift changes ~3000) and output shape
+`(600, 800, 4)`.
 Critic: run the test; confirm fixtures are the real photos, not synthetic;
-confirm a deliberate 5-pixel shift of the marker mask makes the test fail.
+confirm a deliberate one-pixel boundary change (dilate iterations 2→1) and a
+colour-weight change both make the test fail.
 Success: red/green demonstrated both ways.
 
 ### Part 1: Packaging, lint, types, CI  (prerequisite; independent of Part 0)
@@ -109,12 +112,16 @@ startup.
 Success: exactly one fish per file, every extension/case, no duplicate.
 
 ### Part 4: Scanner refinements  (depends on Part 0; independent of 2 and 3)
-Builder: derive the four marker exclusion zones from the warped positions of
-the detected ArUco corners instead of fixed 110 px squares; keep a soft alpha
-edge (no hard 127 threshold) so the GL alpha test antialiases.
+Builder: the fixed 110 px corner masks have zero effect on either example
+photo (measured 2026-11-03: the largest contour never reaches the corners),
+so first decide with evidence whether that code is needed at all, and delete
+it if not; keep a soft alpha edge (no hard 127 threshold) so the GL alpha
+test antialiases. The chopped top fin in `example_fish2` is caused by the
+warp cropping at the line between the top markers, not by the corner mask;
+fix by warping with a margin outside the marker rectangle.
 Critic: blind A/B of cutouts vs the current goldens on both examples plus two
-new photos Josh supplies; the known chopped top fin in `example_fish2` must
-be fixed; no new halo. Golden test is then re-baselined with Josh's OK.
+new photos Josh supplies; the chopped fin must be fixed; no new halo. Golden
+test is then re-baselined with Josh's OK.
 Success: A/B win on every photo. No ML dependencies (Boundary).
 
 ### Part 5: Animation and engine hygiene  (depends on Part 2)
