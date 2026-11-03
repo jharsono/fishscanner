@@ -177,3 +177,30 @@ def test_near_fish_is_drawn_in_front_of_far_fish(renderer):
     for order in ([near, far], [far, near]):
         renderer.render(order)
         assert read_pixel(WIDTH // 2, HEIGHT // 2)[:3] == (255, 0, 0), f"far fish drawn on top with order {order}"
+
+
+def silhouette_box(frame: np.ndarray, clear: tuple[int, int, int]) -> tuple[int, int, int, int]:
+    """Bounding box (x0, x1, y0, y1) of pixels that differ from the clear colour."""
+    mask = (frame[..., :3] != np.array(clear, dtype=np.uint8)).any(axis=2)
+    ys, xs = np.nonzero(mask)
+    return int(xs.min()), int(xs.max()), int(ys.min()), int(ys.max())
+
+
+def test_fish_tail_beat_foreshortens_width_but_never_moves_height(renderer):
+    from ocean.drawingfish import FISH_TRANSFORM, DrawingFish
+
+    shader = compile_program(FISH_TRANSFORM)
+    fish = DrawingFish(solid_texture((255, 0, 0, 255)), shader=shader)
+    fish.position = np.array([0.0, 0.0, 0.0])
+    fish.scale = np.array([1.0, 0.5, 1.0])
+    fish._speed_factor = 0.0
+    clear = (26, 26, 51)
+    boxes = []
+    for t in np.linspace(0.0, 0.6, 7):  # Roughly one beat
+        renderer.render([fish], time=float(t))
+        boxes.append(silhouette_box(read_frame(), clear))
+    heights = {y1 - y0 for _, _, y0, y1 in boxes}
+    widths = {x1 - x0 for x0, x1, _, _ in boxes}
+    assert len(heights) == 1, f"the beat must not move the fish vertically: {heights}"
+    assert len(widths) > 1, "the tail must foreshorten over the beat"
+    gl.glDeleteProgram(shader.id)

@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: Part 7 critic round 2; Part 8 (tail beat) build
+Current target: Josh judges Parts 7 and 8 in the running app; Part 6 awaits go
 Completed parts: Part 0 (critic PASS); Part 1 (critic conditional PASS, wheel fix applied); Part 3 (round 2 critic PASS, leftovers applied)
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
@@ -65,6 +65,9 @@ Part 6 (docs, delete setup.sh/run.sh).
   nearest-first with depth writes off; fixed by drawing transparent sprites
   farthest-first, with a pixel test. Bubbles now inherit the fish's
   distance; a fish leaving from the far point exits at full pace. 55 tests.
+  Critic round 2: PASS. Deferred nits: bubble scale z is shrunk along with
+  x/y (harmless under the orthographic camera); a test spells np.abs as
+  __abs__(). Fold into the next Part 7 amend if one happens.
 - Part 8: branch modernize/part-8-tail-beat (stacked on Part 7); Josh found
   the y-sine body wave unnatural; replaced by a time-driven tail beat that
   foreshortens the tail horizontally and never moves it vertically.
@@ -79,6 +82,6 @@ Part 6 (docs, delete setup.sh/run.sh).
   Critic round 1: PASS (30 vs 60 Hz identical, irregular frames within 0.3%).
 Next action: Part 2 critic on everything judgeable without references; A/B
 once references exist; Part 5 critic after Part 2 passes.
-Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 1 on Part 7); approvals
+Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7); approvals
 pending on Python floor, requirements.txt, GL approach, XQuartz reference
 capture, and pushing branches for CI; no push.

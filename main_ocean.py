@@ -252,7 +252,7 @@ def main():
         for _ in range(clock.advance(now - last_time)):
             step(renderer, scene, scanned_fish_queue)
         last_time = now
-        renderer.render(scene.drawings)
+        renderer.render(scene.drawings, time=now)
         glfw.swap_buffers(window)
         glfw.poll_events()
 

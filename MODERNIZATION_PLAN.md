@@ -183,6 +183,18 @@ cycle with two fish out of phase, judged for a convincing "into the
 distance" look and for the far fish drawing behind the near one.
 Success: tests pass and Josh judges the motion natural in the running app.
 
+### Part 8: Side-view tail beat  (depends on Part 7; requested by Josh 2026-11-03)
+Josh found the y-sine body wave unnatural: it read as the fish flapping
+vertically. Builder: replace it with a time-driven tail beat seen from the
+side: the swing grows toward the tail tip, travels along the body and
+foreshortens the tail horizontally (the tail swings out of the picture
+plane), never moving it vertically; per-fish phase offset so fish do not
+beat in unison. A continuous `time` uniform (seconds) reaches every program.
+Critic: a GL test that the fish silhouette's height is constant across a
+beat while its width changes; a contact sheet across one beat; the seaweed
+sway must be unchanged.
+Success: tests pass and Josh judges the motion natural in the running app.
+
 ## Integration critic (final, fresh context)
 
 Fresh clone, `uv sync`, `uv run fishscanner`, drop one JPG and one HEIC,

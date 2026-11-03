@@ -65,11 +65,12 @@ class Drawing:
     def texid(self) -> int:
         return self._texid
 
-    def render(self, projection: np.ndarray, default_shader: ShaderProgram) -> None:
+    def render(self, projection: np.ndarray, default_shader: ShaderProgram, time: float = 0.0) -> None:
         """
         Render sprite with attached texture and shader
         :param projection: Camera projection matrix
         :param default_shader: Program used when the sprite has none of its own
+        :param time: Seconds since the app started, for continuous shader motion
         :return:
         """
         shader = self._shader or default_shader
@@ -78,6 +79,7 @@ class Drawing:
         gl.glUniformMatrix4fv(shader.projection, 1, gl.GL_TRUE, projection)
         gl.glUniform3f(shader.color, *self.color)
         gl.glUniform1f(shader.timer, self._time_counter)
+        gl.glUniform1f(shader.time, time)
         self._time_counter += self.step_animation_timer
         # If timer came to border - go back
         if self._time_counter >= self.max_animation_timer or self._time_counter <= 0:

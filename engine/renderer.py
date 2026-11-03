@@ -45,10 +45,11 @@ class Renderer:
         # Y grows downwards on screen: smaller y is higher
         self.projection = orthographic(-half_width, half_width, half_height, -half_height, -1, 1)
 
-    def render(self, drawings_list: list[Drawing]) -> None:
+    def render(self, drawings_list: list[Drawing], time: float = 0.0) -> None:
         """
         Draw all sprites
         :param drawings_list: List of sprites to draw
+        :param time: Seconds since the app started, for continuous shader motion
         :return:
         """
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)  # pyright: ignore[reportOperatorIssue]
@@ -60,14 +61,14 @@ class Renderer:
         gl.glDepthMask(gl.GL_TRUE)
         for drawing in sorted_drawings:
             if not drawing.is_transparent:
-                drawing.render(self.projection, self.default_shader)
+                drawing.render(self.projection, self.default_shader, time)
 
         # Second pass: render transparent objects farthest first, so nearer ones paint over them
         # (they do not write depth, so draw order is what decides which one shows)
         gl.glDepthMask(gl.GL_FALSE)  # Don't write to depth buffer for transparent objects
         for drawing in reversed(sorted_drawings):
             if drawing.is_transparent:
-                drawing.render(self.projection, self.default_shader)
+                drawing.render(self.projection, self.default_shader, time)
 
         gl.glDepthMask(gl.GL_TRUE)  # Reset depth mask
 

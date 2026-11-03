@@ -6,17 +6,20 @@ from engine.drawing import Drawing
 from engine.shaders import ShaderProgram
 from ocean.drawingbubble import DrawingBubble
 
-# Sine wave along the body in world space, so it travels along the fish as it swims
+# Tail beat as seen from the side. A fish swings its tail sideways, out of the picture plane,
+# so on screen the tail foreshortens toward the body rather than bending up and down. The
+# swing grows toward the tail tip and travels along the body; each fish is offset by its world
+# x so they do not beat in unison.
 FISH_TRANSFORM = """
+const float TAIL_BEAT_HZ = 1.6;
+const float TAIL_SWING = 0.6;   // Peak swing at the tail tip, radians (about 35 degrees)
+const float TAIL_START = 0.1;   // Sprite x where the flexible tail begins; the head is toward +x
 vec4 transform(vec3 p) {
-    vec4 world = model * vec4(p, 1.0);
-    float pi = 3.14159;
-    float A_x = 0.001;
-    float A_y = 0.01;
-    float w = 10.0 * pi;
-    float t = 30.0 * pi / 180.0;
-    float wave = sin(w * world.x + t);
-    return vec4(world.x + wave * A_x, world.y + wave * A_y, world.z, world.w);
+    float tail = clamp((TAIL_START - p.x) / (TAIL_START + 0.5), 0.0, 1.0);
+    float phase = 6.2832 * TAIL_BEAT_HZ * time + model[3][0] * 7.0 - tail * 2.0;
+    float swing = TAIL_SWING * tail * tail * sin(phase);
+    float x = TAIL_START + (p.x - TAIL_START) * cos(swing);
+    return model * vec4(x, p.y, p.z, 1.0);
 }
 """
 
