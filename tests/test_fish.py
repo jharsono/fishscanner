@@ -138,6 +138,7 @@ def test_far_point_values_are_exact():
     fish = DrawingFish(texid=1)
     start_swimming(fish)
     fish._depth_period = 600
+    fish._depth_tick = 0
     for _ in range(300):
         fish.animation()
     assert np.allclose(np.abs(fish.scale), fish._base_scale.__abs__() * FAR_SCALE)
@@ -151,6 +152,7 @@ def test_bubbles_inherit_the_parent_fish_distance():
     fish = DrawingFish(texid=1)
     start_swimming(fish)
     fish._depth_period = 600
+    fish._depth_tick = 0
     for _ in range(300):
         fish.animation()
     fish._bubble_random_frequency = 1  # Spawn on the next step
@@ -313,3 +315,122 @@ def test_fish_end_up_out_of_phase():
             fish.animation()
         phases.add(round(fish._tail_phase % (2 * np.pi), 2))
     assert len(phases) == 4
+
+
+def swimming_fish_at(x: float, y: float) -> DrawingFish:
+    fish = DrawingFish(texid=1)
+    start_swimming(fish)
+    hold_effort(fish, 1.0)
+    fish._depth_period = 600
+    fish.position = np.array([x, y, 0.0])
+    fish.vector = np.array([0.0, 0.0, 0.0])  # Hold still so the test is about depth, not motion
+    return fish
+
+
+def test_fish_overlap_is_judged_from_their_drawn_extents():
+    a = swimming_fish_at(0.0, 0.0)
+    b = swimming_fish_at(0.9, 0.0)  # Fish are 1.0 wide: edges touch at 0.5 vs 0.4
+    c = swimming_fish_at(1.2, 0.0)
+    assert a.overlaps(b) and b.overlaps(a)
+    assert not a.overlaps(c)
+
+
+def test_overlap_uses_the_painted_extent_not_the_whole_canvas():
+    a = swimming_fish_at(0.0, 0.0)
+    b = swimming_fish_at(0.7, 0.0)
+    assert a.overlaps(b)  # Full quads (1.0 wide) overlap
+    a.extent = b.extent = np.array([0.5, 1.0])  # Paint covers only the middle half of each canvas
+    assert not a.overlaps(b)
+
+
+def test_depth_cycles_continue_but_never_cross_while_overlapping():
+    from ocean.drawingfish import prevent_depth_crossings
+
+    a = swimming_fish_at(0.0, 0.0)  # Near (tick 0), heading away
+    b = swimming_fish_at(0.3, 0.1)
+    b._depth_tick = 300  # Far point, heading back toward the front: the two would meet
+    for _ in range(300):
+        prevent_depth_crossings([a, b])
+        a.animation()
+        b.animation()
+        assert a.position[2] >= b.position[2]  # a stays in front for the whole overlap
+    assert 0 < a._depth_tick <= 152 and 300 < b._depth_tick  # Both cycled up to the meeting point, then held
+    b.position[0] = 2.0  # Now clear of each other
+    held = (a._depth_tick, b._depth_tick)
+    for _ in range(50):
+        prevent_depth_crossings([a, b])
+        a.animation()
+        b.animation()
+    assert a._depth_tick == held[0] + 50 and b._depth_tick == held[1] + 50  # Both resume
+
+
+def test_many_fish_keep_cycling_and_never_pass_through_each_other():
+    """Six fish with real-sized painted extents (scans cover ~0.75 x 0.85 of their canvas)."""
+    from ocean.drawingfish import prevent_depth_crossings
+
+    fishes = []
+    for seed in range(6):
+        np.random.seed(seed)
+        fish = DrawingFish(texid=1, extent=(0.75, 0.85))
+        start_swimming(fish)
+        fishes.append(fish)
+    advanced = [0] * 6
+    crossings = 0
+    for _ in range(3600):  # One minute
+        before_z = [f.position[2] for f in fishes]
+        before_tick = [f._depth_tick for f in fishes]
+        prevent_depth_crossings(fishes)
+        for f in fishes:
+            f.animation()
+        for i, f in enumerate(fishes):
+            advanced[i] += f._depth_tick > before_tick[i]
+            for k in range(i + 1, 6):
+                if (
+                    f.overlaps(fishes[k])
+                    and np.sign(before_z[i] - before_z[k]) * np.sign(f.position[2] - fishes[k].position[2]) < 0
+                ):
+                    crossings += 1
+    assert crossings == 0
+    assert min(advanced) > 600 and np.mean(advanced) > 1800, f"fish spent too long held: {advanced}"
+
+
+def test_overlap_lookahead_sees_fish_about_to_meet_or_grow_into_each_other():
+    a = swimming_fish_at(0.0, 0.0)
+    b = swimming_fish_at(1.2, 0.0)  # Just clear: half widths sum to 1.0 with full-canvas extents
+    assert not a.overlaps(b) and not a.overlaps(b, after_step=True)
+    b.vector = np.array([-0.3, 0.0, 0.0])  # Would step well into a next tick
+    assert not a.overlaps(b) and a.overlaps(b, after_step=True)
+    b.vector[:] = 0
+    b._depth_tick = 299  # At the far point, small; next step it starts growing back
+    b._apply_distance(1.0)
+    b.position[0] = 0.5 + abs(b.scale[0]) / 2 + 1e-4  # Touching distance at the current, shrunken size
+    assert not a.overlaps(b)
+    b._depth_tick = 400  # Growing quickly on the way back
+    assert a.overlaps(b, after_step=True)
+
+
+def test_equal_depth_tie_holds_only_one_fish():
+    from ocean.drawingfish import prevent_depth_crossings
+
+    a = swimming_fish_at(0.0, 0.0)
+    b = swimming_fish_at(0.2, 0.0)  # Both at depth tick 0, z 0, overlapping
+    for _ in range(30):
+        prevent_depth_crossings([a, b])
+        a.animation()
+        b.animation()
+    assert (
+        a._depth_tick != b._depth_tick and min(a._depth_tick, b._depth_tick) > 0
+    )  # One waited a tick; an order formed
+    # At equal depth the renderer draws the earlier sprite on top, so that one must stay on top
+    assert a.position[2] > b.position[2]
+
+
+def test_lookahead_predicts_the_eased_effort_not_the_current_one():
+    a = swimming_fish_at(0.0, 0.0)
+    b = swimming_fish_at(1.2, 0.0)  # Just clear at full-canvas extents
+    b.vector = np.array([-0.05, 0.0, 0.0])
+    b.effort = 0.0
+    b._effort_target = 2.0  # The next move uses the eased effort, which is above zero
+    assert a.overlaps(b, after_step=True) == (b._next_effort() * 0.05 > 0.2)
+    b._effort_target = 0.0
+    assert not a.overlaps(b, after_step=True)

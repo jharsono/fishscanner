@@ -110,11 +110,23 @@ matrix and tolerate the queue, or drop it.
   didn't seem to load" on this branch; headless startup from the same
   folder loads all three photos (including his 4032x3024 IMG_3348.JPG, scan
   0.16 s) and renders them, so not reproduced; awaiting details.
+- Part 11: branch modernize/part-11-no-pass-through (stacked on Part 10).
+  Round 1 critic: FAIL (pausing every overlapping fish froze the depth
+  cycle at 6+ fish: 99.7% held, no cycle completed). Round 2: hold only
+  the crossing, with look-ahead of positions and sizes and painted extents
+  from the scan; 10 fish x 5 min x 3 seeds: 0 crossings, 3+ cycles each,
+  ~60% held (30-45% at 3-5 fish). Round 2 critic: narrow FAIL: the extent
+  box was centred on the sprite while the paint can sit anywhere on the
+  page; now the smallest centred box containing the paint; eased effort in
+  the look-ahead; equal-depth tie holds one fish; look-ahead tests. 79 tests.
+  Round 3 critic (last): PASS; found the tie held the wrong fish (the one
+  drawn on top stepped behind: a one-off pop for pairs entering together);
+  now the top-drawn fish is held. Eased-effort look-ahead test added.
 Part 4 round 2 critic: PASS (cast sweep never breaks). Noted for a small
 follow-up: the corner mask leaves a ~20 px ring of a touched marker; two
 comment wordings in simplescanner.py overstate paper noise and a blank
 border.
 Next action: Part 10 critic; integration critic verdict.
-Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7, 1 on Part 9, 1 on Part 6, 2 on Part 4); approvals
+Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7, 1 on Part 9, 1 on Part 6, 2 on Part 4, 2 on Part 11); approvals
 pending on Python floor, requirements.txt, GL approach, XQuartz reference
 capture, and pushing branches for CI; no push.

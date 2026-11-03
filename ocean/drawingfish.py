@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 
 import numpy as np
@@ -52,6 +54,42 @@ def distance_cycle(tick: int, period: int) -> float:
     return 0.5 * (1 - math.cos(2 * math.pi * tick / period))
 
 
+def prevent_depth_crossings(fishes: list[DrawingFish]) -> None:
+    """
+    Hold the depth cycle of any fish whose next step would cross the depth of a fish it
+    overlaps on screen, so two overlapping fish keep their draw order (a swap would look like
+    one passing through the other). Fish that overlap without crossing keep cycling.
+    :param fishes: All fish in the scene
+    :return:
+    """
+    for fish in fishes:
+        fish.hold_depth = False
+    for i, fish in enumerate(fishes):
+        for other in fishes[i + 1 :]:
+            if not (fish.overlaps(other) or fish.overlaps(other, after_step=True)):
+                continue  # Not overlapping now and not about to: both may move freely
+            # Either fish may move this tick; hold as few as keep them from meeting or passing.
+            # A move only counts as safe if it stays on its side of the other fish's CURRENT depth
+            # too, because a later pair may hold that other fish after this decision is made.
+            order = np.sign(fish.position[2] - other.position[2])
+            fish_next = fish.position[2] if fish.hold_depth else fish.next_z()
+            other_next = other.position[2] if other.hold_depth else other.next_z()
+            fish_ok = np.sign(fish_next - other.position[2]) == order
+            other_ok = np.sign(fish.position[2] - other_next) == order
+            if order == 0:
+                # Same depth: the renderer draws the earlier sprite on top, so hold that one and let
+                # the later one step deeper; the order that forms matches what is already on screen
+                fish.hold_depth = True
+            elif not (fish_ok or other_ok):
+                fish.hold_depth = other.hold_depth = True
+            elif fish_ok and other_ok and np.sign(fish_next - other_next) == order:
+                continue  # Both may move
+            elif fish_ok:
+                other.hold_depth = True  # Let this one move; the other would meet it
+            else:
+                fish.hold_depth = True
+
+
 class DrawingFish(Drawing):
     """
     Sprite for drawing of fish
@@ -64,6 +102,7 @@ class DrawingFish(Drawing):
         grid_y: int = 5,
         shader: ShaderProgram | None = None,
         bubble_texture_id: int = 0,
+        extent: tuple[float, float] = (1.0, 1.0),
     ):
         """
         Set default position of fish and select default vector of moving
@@ -72,6 +111,7 @@ class DrawingFish(Drawing):
         :param grid_y: Mesh elements along axis Y
         :param shader: Sprite program, or None for the renderer's default
         :param bubble_texture_id: ID of a bubble texture
+        :param extent: Fraction of the canvas width and height the painted fish covers
         """
         super().__init__(texid, grid_x, grid_y, shader)
         self.is_transparent = True  # Mark fish as transparent for proper rendering
@@ -114,6 +154,8 @@ class DrawingFish(Drawing):
         self._depth_tick = 0
         self._distance = 0.0
         self._speed_factor = 1.0
+        self.hold_depth = False  # Set each tick by prevent_depth_crossings
+        self.extent = np.array(extent, dtype=float)
 
         # Temperament
         self.tempo = np.random.uniform(*TEMPO_RANGE)
@@ -180,8 +222,9 @@ class DrawingFish(Drawing):
                 self._animation_stage = "swim"
 
         elif self._animation_stage == "swim":
+            if not self.hold_depth:
+                self._depth_tick += 1
             self._apply_distance(distance_cycle(self._depth_tick, self._depth_period))
-            self._depth_tick += 1
 
             # Beyond a border and still heading out: turn around once. Checking the heading
             # matters because a fish can start swimming already past a border (a long entry
@@ -207,6 +250,46 @@ class DrawingFish(Drawing):
         elif self._animation_stage == "finish":
             if self.position[0] > self._right + 1.0 or self.position[0] < self._left - 1.0:
                 self.is_alive = False
+
+    def overlaps(self, other: DrawingFish, after_step: bool = False) -> bool:
+        """
+        Whether this fish's painted rectangle overlaps another's on screen
+        :param other: Another fish
+        :param after_step: Judge where both fish will be after their next movement step
+        :return: True when the two painted areas overlap in x and y
+        """
+        mine, theirs = self.position[:2], other.position[:2]
+        my_size, their_size = np.abs(self.scale[:2]), np.abs(other.scale[:2])
+        if after_step:
+            mine = mine + self.vector[:2] * self._speed_factor * self._next_effort()
+            theirs = theirs + other.vector[:2] * other._speed_factor * other._next_effort()
+            # A fish coming nearer grows a little each tick: judge with the larger size
+            my_size = np.maximum(my_size, self._next_size())
+            their_size = np.maximum(their_size, other._next_size())
+        half = (my_size * self.extent + their_size * other.extent) / 2
+        return bool(np.all(np.abs(mine - theirs) < half))
+
+    def _next_effort(self) -> float:
+        """Effort after the easing step that precedes the next move"""
+        return self.effort + (self._effort_target - self.effort) * EFFORT_EASING
+
+    def _next_size(self) -> np.ndarray:
+        """Drawn width and height after the next depth step"""
+        distance = (
+            distance_cycle(self._depth_tick + 1, self._depth_period)
+            if self._animation_stage == "swim"
+            else self._distance
+        )
+        return np.abs(self._base_scale[:2]) * (1 - (1 - FAR_SCALE) * distance)
+
+    def next_z(self) -> float:
+        """
+        Depth this fish would be at after its next cycle step (unchanged unless swimming)
+        :return: z position
+        """
+        if self._animation_stage != "swim":
+            return float(self.position[2])
+        return FAR_Z * distance_cycle(self._depth_tick + 1, self._depth_period)
 
     def _update_effort(self) -> None:
         """

@@ -12,7 +12,7 @@ from engine.renderer import Renderer
 from engine.shaders import ShaderProgram, compile_program
 from engine.simplescanner import SimpleScanner
 from ocean import IMAGES_DIR
-from ocean.drawingfish import FISH_TRANSFORM, DrawingFish
+from ocean.drawingfish import FISH_TRANSFORM, DrawingFish, prevent_depth_crossings
 from ocean.drawingseaweed import SEAWEED_TRANSFORM, DrawingSeaweed
 from ocean.drawingstatic import DrawingStatic
 
@@ -154,7 +154,9 @@ class Scene:
 
     def add_fish(self, scanned_fish: np.ndarray) -> None:
         texture = self.resources.texture(Renderer.create_texture(scanned_fish))
-        fish = DrawingFish(texture, shader=self.fish_shader, bubble_texture_id=self.bubble_texture)
+        fish = DrawingFish(
+            texture, shader=self.fish_shader, bubble_texture_id=self.bubble_texture, extent=painted_extent(scanned_fish)
+        )
         self.drawings.append(fish)
         self.fish_queue.put(fish)
         if self.fish_queue.qsize() > FISH_LIMIT:
@@ -165,6 +167,23 @@ class Scene:
         self.drawings[:] = [d for d in self.drawings if d not in dead]
         for fish in dead:
             self.resources.release_texture(fish.texid)
+
+
+def painted_extent(scanned_fish: np.ndarray) -> tuple[float, float]:
+    """
+    Smallest box centred on the canvas that contains a scan's opaque pixels, as fractions of
+    the canvas per axis. The scanner keeps the drawing wherever it sits on the page, so the
+    box reaches out to the farthest painted pixel on each axis rather than hugging the paint.
+    :param scanned_fish: RGBA scan
+    :return: (width fraction, height fraction), 1.0 when nothing is opaque
+    """
+    rows, cols = np.nonzero(scanned_fish[..., 3])
+    if rows.size == 0:
+        return (1.0, 1.0)
+    height, width = scanned_fish.shape[:2]
+    reach_x = max(0.5 - cols.min() / width, (cols.max() + 1) / width - 0.5)
+    reach_y = max(0.5 - rows.min() / height, (rows.max() + 1) / height - 0.5)
+    return (min(2 * reach_x, 1.0), min(2 * reach_y, 1.0))
 
 
 def load_fish_from_files(scanner: SimpleScanner, scanned_fish_queue: Queue) -> None:
@@ -188,6 +207,7 @@ def step(renderer: Renderer, scene: Scene, scanned_fish_queue: Queue) -> None:
     :param scanned_fish_queue: Queue with scanning results
     :return:
     """
+    prevent_depth_crossings([d for d in scene.drawings if isinstance(d, DrawingFish)])
     renderer.animate(scene.drawings)
     if not scanned_fish_queue.empty():
         scene.add_fish(scanned_fish_queue.get())

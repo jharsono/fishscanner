@@ -240,6 +240,31 @@ the beat still only foreshortens; a 30 s simulation showing fish out of
 phase and at different efforts.
 Success: tests pass and Josh judges the variety natural in the app.
 
+### Part 11: No passing through each other  (requested by Josh 2026-11-03)
+Josh: "sometimes there's a collision on the z axis and a fish goes through
+another fish; ensure there's no collision before a fish goes to the next z."
+Builder (round 2; round 1 paused the whole cycle of every overlapping
+fish, and the critic showed that at 6+ fish in a 3x1 band that froze the
+near/far feature entirely): hold only the crossing. Each tick
+`prevent_depth_crossings` lets a fish's depth step through unless it would
+meet or pass the depth of a fish whose painted rectangle it overlaps, now
+or after this tick's movement (positions and sizes looked ahead one step);
+whichever fish of the pair would do the crossing is held, the other keeps
+cycling. Overlap uses the smallest centred box that contains the scan's paint
+(`main_ocean.painted_extent`; the drawing can sit anywhere on the page and
+is mirrored when the fish faces left, so the box must reach it from the
+centre; ~0.8 x 1.0 of the canvas on the examples). Measured over 5 minutes
+with 10 fish (the cap): 0 crossings on three seed sets in list and
+shuffled order, every fish completes 2+ cycles, held 65-75% of swimming
+ticks on average (worst fish up to 90%, single holds up to 2.5 minutes
+while two fish travel together); with 3-5 fish, 30-45%. At equal depth the
+fish the renderer draws on top (earlier in the list) is the one held, so
+the order that forms matches the screen.
+Critic: headless tests for overlap geometry (extent, look-ahead), for
+cycling-until-the-crossing and resume, and a 6-fish minute with zero
+crossings; the 10-fish 5-minute acceptance above reproduced.
+Success: tests pass and Josh no longer sees fish pass through each other.
+
 ## Integration critic (final, fresh context)
 
 Fresh clone, `uv sync`, `uv run fishscanner`, drop one JPG and one HEIC,
