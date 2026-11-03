@@ -43,7 +43,7 @@ def renderer(window):
 def read_pixel(x: int, y: int) -> tuple[int, ...]:
     data = gl.glReadPixels(x, y, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE)
     assert isinstance(data, bytes)
-    return tuple(np.frombuffer(data, dtype=np.uint8))
+    return tuple(int(value) for value in data)
 
 
 def read_frame() -> np.ndarray:
