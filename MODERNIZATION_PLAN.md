@@ -137,17 +137,34 @@ startup.
 Success: exactly one fish per file, every extension/case, no duplicate.
 
 ### Part 4: Scanner refinements  (depends on Part 0; independent of 2 and 3)
-Builder: the fixed 110 px corner masks have zero effect on either example
-photo (measured 2026-11-03: the largest contour never reaches the corners),
-so first decide with evidence whether that code is needed at all, and delete
-it if not; keep a soft alpha edge (no hard 127 threshold) so the GL alpha
-test antialiases. The chopped top fin in `example_fish2` is caused by the
-warp cropping at the line between the top markers, not by the corner mask;
-fix by warping with a margin outside the marker rectangle.
-Critic: blind A/B of cutouts vs the current goldens on both examples plus two
-new photos Josh supplies; the chopped fin must be fixed; no new halo. Golden
-test is then re-baselined with Josh's OK.
-Success: A/B win on every photo. No ML dependencies (Boundary).
+Trigger: Josh saw transparent holes in the top fins of `example_fish2`
+(2026-11-03). Root cause: those fins reach the line between the top markers,
+so the crop removes their outline stroke; the mask came from ink strokes
+only (adaptive threshold ignores flat colour) and filled the inside of the
+outline, so where the outline was missing the fill leaked.
+Builder: count painted colour (HSV saturation and value above a threshold)
+as drawing in addition to strokes, so filled areas stay opaque with or
+without their outline; correct the RGB-as-BGR unpack so the 0.6 weight
+really lands on red (found by the Part 6 critic); re-baseline the goldens.
+Measured: example 1 unchanged by the colour mask, example 2 goes from 4028
+painted-but-transparent pixels to 8; the unpack fix moves ~250 boundary
+pixels per photo. The fixed 110 px corner masks have no effect on either
+example (the largest contour never reaches a corner) but guard a drawing
+that touches a marker, so they stay. Not done: a soft alpha edge (taste
+call; the hard edge has not been raised as a problem) and warping with a
+margin (it brings the table into frame, which can become the largest
+contour).
+Round 1 critic found a cliff: an absolute saturation threshold turns the
+whole page into "paint" under a warm colour cast (paper median S > 60,
+simulated with a 25% blue deficit: IoU 0.55). The threshold is now
+relative to the paper's saturation, measured from the blank border of the
+aligned frame, plus a margin of 50; under a 35% blue deficit the mask
+stays within IoU 0.9999 of the golden, and a test covers a 30% cast.
+Critic: the painted-leak test fails on the old code for example 2 and
+passes now; both goldens re-baselined and reviewed as images; a photo with
+a drawing that touches a corner marker still yields the fish; the
+colour-cast test fails against an absolute threshold.
+Success: tests pass and Josh sees solid fins in the app.
 
 ### Part 5: Animation and engine hygiene  (depends on Part 2)
 Builder: delta-time movement from the frame clock; dead-fish and bubble
@@ -242,7 +259,8 @@ would need a forbidden action; or a critic cannot judge without a human
 4. One-time XQuartz install for reference capture: approved. The cask's
    `.pkg` needs sudo, so Josh runs `brew install --cask xquartz` himself.
 5. Pushing branches and opening PRs: approved.
-6. Part 4 photos: Josh supplies two new fish photos.
+6. Part 4 photos: Josh tested with his own photo ("it works well") and
+   reported the example 2 fin holes; no new photos were added to the repo.
 7. XQuartz reference capture: skipped; Josh's visual check of the Part 2
    build replaces the A/B.
 8. Bubbles not rendering was unintentional; restored in Part 5.

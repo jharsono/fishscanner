@@ -64,3 +64,34 @@ def test_photo_with_one_marker_hidden_raises(scanner):
     frame[y0:y1, x0:x1] = 255
     with pytest.raises(ValueError):
         scanner.scan(frame)
+
+
+def painted_pixels(scanner: SimpleScanner, aligned: np.ndarray) -> np.ndarray:
+    photo = cv2.resize(aligned, (scanner.target_w, scanner.target_h))
+    hsv = cv2.cvtColor(photo, cv2.COLOR_RGB2HSV)
+    # Paint on white paper in the examples' lighting (paper saturation ~7)
+    return (hsv[..., 1] > 7 + scanner.paint_saturation_margin) & (hsv[..., 2] > scanner.paint_min_value)
+
+
+@pytest.mark.parametrize("name", EXAMPLES)
+def test_painted_areas_are_never_transparent(scanner, name):
+    """A filled fin must stay opaque even where its outline is cut off by the crop."""
+    aligned = scanner.scan(read_photo(PHOTOS / name))
+    out = scanner.remove_background(aligned)
+    leaked = painted_pixels(scanner, aligned) & (out[..., 3] == 0)
+    # example_fish2 keeps a 4x3 speck at the mouth edge; anything larger is a real hole
+    assert int(leaked.sum()) < 50, f"{int(leaked.sum())} painted pixels are transparent"
+
+
+@pytest.mark.parametrize("name", EXAMPLES)
+def test_warm_colour_cast_does_not_turn_the_paper_into_paint(scanner, name):
+    """Under warm light the paper itself is saturated; the mask must still be the fish, not the page."""
+    aligned = scanner.scan(read_photo(PHOTOS / name))
+    cast = aligned.copy()
+    cast[..., 2] = (cast[..., 2] * 0.7).astype(np.uint8)  # 30% blue deficit
+    golden = cv2.imread(str(golden_path(name)), cv2.IMREAD_GRAYSCALE)
+    assert golden is not None
+    golden = golden > 127
+    mask = scanner.remove_background(cast)[..., 3] > 127
+    iou = np.logical_and(mask, golden).sum() / np.logical_or(mask, golden).sum()
+    assert iou > 0.99, f"mask IoU against the golden fell to {iou:.3f}"

@@ -24,6 +24,16 @@ class SimpleScanner:
         self.target_w = 800
         self.target_h = 600
 
+        # A pixel counts as paint when its HSV saturation exceeds the paper's by this margin
+        # (paper noise reaches ~30 above its median on the examples) and its value is above
+        # paint_min_value, which keeps the black markers and dark ink out of the colour mask.
+        # The paper's saturation is measured from the border of the aligned frame, which the
+        # template keeps blank, so warm light or cream paper raises the bar instead of
+        # turning the whole page into "paint".
+        self.paint_saturation_margin = 50
+        self.paint_min_value = 60
+        self.paper_border = 30  # Width in pixels of the frame border sampled for paper colour
+
     def scan(
         self,
         frame: np.ndarray,
@@ -76,6 +86,19 @@ class SimpleScanner:
 
             return warped
 
+    def _paper_saturation(self, hsv: np.ndarray) -> int:
+        """
+        Estimate the paper's HSV saturation from the blank border of the aligned frame
+        :param hsv: Aligned frame in HSV at target size
+        :return: Median saturation of bright border pixels, or 0 if there are none
+        """
+        border = np.zeros(hsv.shape[:2], dtype=bool)
+        border[: self.paper_border] = border[-self.paper_border :] = True
+        border[:, : self.paper_border] = border[:, -self.paper_border :] = True
+        bright = hsv[..., 2] > self.paint_min_value  # Leave out the markers and any ink
+        samples = hsv[..., 1][border & bright]
+        return int(np.median(samples)) if samples.size else 0
+
     def remove_background(
         self,
         frame: np.ndarray,
@@ -87,15 +110,21 @@ class SimpleScanner:
         """
         frame = cv2.resize(frame, (self.target_w, self.target_h))
 
-        # Convert to grayscale with better handling of red channel
-        b, g, r = cv2.split(frame)
+        # Convert to grayscale with better handling of red channel (the frame is RGB)
+        r, g, b = cv2.split(frame)
         # Give more weight to red channel
         gray = cv2.addWeighted(cv2.addWeighted(b, 0.299, g, 0.587, 0), 0.4, r, 0.6, 0)
 
-        # Create binary mask using adaptive thresholding
-        binary = cv2.adaptiveThreshold(
+        # Create binary mask using adaptive thresholding: this finds ink strokes, not flat colour
+        strokes = cv2.adaptiveThreshold(
             gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, blockSize=25, C=3
         )
+        # Painted areas count as drawing too, so a filled fin stays opaque even where its
+        # outline is cut off by the crop (white paper has no saturation)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
+        min_saturation = min(self._paper_saturation(hsv) + self.paint_saturation_margin, 255)
+        painted = cv2.inRange(hsv, (0, min_saturation, self.paint_min_value), (180, 255, 255))
+        binary = cv2.bitwise_or(strokes, painted)
 
         # Find contours before removing AR markers
         contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
