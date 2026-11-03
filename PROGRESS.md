@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: Part 9 (turning loop) critic; Josh judges Parts 7 and 8
+Current target: Part 4 critic; PRs #16 (docs) and #17 (py3.14 pyright) awaiting merge; macOS CI runners time out in queue
 Completed parts: Part 0 (critic PASS); Part 1 (critic conditional PASS, wheel fix applied); Part 3 (round 2 critic PASS, leftovers applied)
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
@@ -87,8 +87,18 @@ Part 6 (docs, delete setup.sh/run.sh).
   had been lost unintentionally; 43 tests pass; all gates exit 0. The
   fixed-step loop itself landed in Part 2; Part 5 extracted and tested it.
   Critic round 1: PASS (30 vs 60 Hz identical, irregular frames within 0.3%).
-Next action: Part 2 critic on everything judgeable without references; A/B
-once references exist; Part 5 critic after Part 2 passes.
+- Part 4: branch modernize/part-4-scanner (from main); painted colour joins
+  the stroke mask so cropped-outline fins stay opaque (fish2: 4028 leaked
+  px -> 8); RGB unpack corrected; goldens re-baselined. Critic round 1:
+  PASS with a robustness cliff under warm colour cast; fixed by making the
+  paint threshold relative to the paper's saturation (border band), with a
+  cast test. 65 tests; gates 0.
+CI: Ubuntu cells pass. macOS cells are mostly cancelled by GitHub after
+~15 min in queue with zero steps (two did run: 3.11 passed fully, 3.14 hit
+the pyright issue fixed in PR #17). Decision needed: keep macOS in the
+matrix and tolerate the queue, or drop it.
+Next action: Part 4 critic; merge #17, rebase and merge #16, then the
+integration critic on main.
 Remaining boundary: 3 critic rounds per part (1 used on Parts 0 and 1, 2 on Part 3, 1 on Parts 2 and 5, 2 on Part 7, 1 on Part 9); approvals
 pending on Python floor, requirements.txt, GL approach, XQuartz reference
 capture, and pushing branches for CI; no push.
