@@ -19,7 +19,7 @@ uv run ruff check . && uv run ruff format --check . && uv run pyright   # the CI
 
 Run everything with `PYTHONDONTWRITEBYTECODE=1` when mutating source during a test session: a same-length edit restored within one second can leave a stale `.pyc` in use.
 
-To try the scanner without the GL window, the commented-out block at the bottom of `engine/simplescanner.py` shows the two-call pipeline (`scan` then `remove_background`) on a BGR→RGB frame; `photos/example_fish1.jpg` and `example_fish2.jpg` are valid inputs. Everything else in `photos/` is gitignored.
+To try the scanner without the GL window, `engine.photos.scan_photo_file(path, SimpleScanner())` runs the two-call pipeline (`scan` then `remove_background`) on an RGB frame; `photos/example_fish1.jpg` and `example_fish2.jpg` are valid inputs, and `tests/make_golden.py` shows the batch version. Everything else in `photos/` is gitignored.
 
 ## Git discipline
 

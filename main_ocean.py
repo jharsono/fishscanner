@@ -186,17 +186,20 @@ def painted_extent(scanned_fish: np.ndarray) -> tuple[float, float]:
     return (min(2 * reach_x, 1.0), min(2 * reach_y, 1.0))
 
 
-def load_fish_from_files(scanner: SimpleScanner, scanned_fish_queue: Queue) -> None:
+def load_fish_from_files(scanner: SimpleScanner, scanned_fish_queue: Queue) -> int:
     """
     Scan every photo already in the photos folder
     :param scanner: Object of scanner to process photos
     :param scanned_fish_queue: Queue the animation loop turns into fish sprites
-    :return:
+    :return: Number of fish found
     """
+    found = 0
     for path in list_photos(PHOTOS_DIR):
         scanned_fish = scan_photo_file(path, scanner)
         if scanned_fish is not None:
             scanned_fish_queue.put(scanned_fish)
+            found += 1
+    return found
 
 
 def step(renderer: Renderer, scene: Scene, scanned_fish_queue: Queue) -> None:
@@ -244,7 +247,8 @@ def main():
     scanner = SimpleScanner()
     scanned_fish_queue: Queue = Queue()
     PHOTOS_DIR.mkdir(exist_ok=True)
-    load_fish_from_files(scanner, scanned_fish_queue)
+    found = load_fish_from_files(scanner, scanned_fish_queue)
+    print(f"Loaded {found} fish from {PHOTOS_DIR.resolve()}; drop photos there to add more")
 
     # Scan photos added while the app is running. A photo that lands between the startup
     # scan above and this start() is treated as already present and will not be scanned.

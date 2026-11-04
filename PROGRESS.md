@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: Part 15 critic; PRs #20-#25 await merge
+Current target: merge the close-out (#21); Parts 10-15 merged to main on 2026-11-03
 Completed parts: 0, 1, 2, 3, 4, 5, 7, 8, 9 merged to main on 2026-11-03; 6 merging
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within

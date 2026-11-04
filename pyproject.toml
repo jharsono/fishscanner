@@ -33,6 +33,7 @@ only-include = ["engine", "ocean", "main_ocean.py"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-p no:cacheprovider"
+filterwarnings = ["error"]  # Test output must be pristine
 
 [tool.ruff]
 line-length = 120
