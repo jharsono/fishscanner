@@ -8,16 +8,22 @@ from engine.drawing import Drawing
 from engine.shaders import ShaderProgram
 from ocean.drawingbubble import DrawingBubble
 
-# Tail beat as seen from the side. A fish swings its tail sideways, out of the picture plane,
-# so on screen the tail foreshortens toward the body rather than bending up and down. The
-# swing grows toward the tail tip and travels along the body. params.x is the fish's own beat
-# phase (advanced in animation() from its tempo and effort) and params.y the peak swing.
+# Tail beat and head turn as seen from the side. A fish swings its tail sideways, out of the
+# picture plane, so on screen the tail foreshortens toward the body rather than bending up and
+# down; the swing grows toward the tail tip and travels along the body. The head does the
+# same, gently and without wiggling, when the fish is swimming away or toward the viewer:
+# a turn out of the picture plane foreshortens the head end. params.x is the fish's own beat
+# phase (advanced in animation() from its tempo and effort), params.y the peak tail swing and
+# params.z the head turn angle.
 FISH_TRANSFORM = """
 const float TAIL_START = 0.1;   // Sprite x where the flexible tail begins; the head is toward +x
+const float HEAD_START = 0.2;   // Sprite x where the head begins turning
 vec4 transform(vec3 p) {
     float tail = clamp((TAIL_START - p.x) / (TAIL_START + 0.5), 0.0, 1.0);
     float swing = params.y * tail * tail * sin(params.x - tail * 2.0);
     float x = TAIL_START + (p.x - TAIL_START) * cos(swing);
+    float head = clamp((x - HEAD_START) / (0.5 - HEAD_START), 0.0, 1.0);
+    x = HEAD_START + (x - HEAD_START) * cos(params.z * head);
     return model * vec4(x, p.y, p.z, 1.0);
 }
 """
@@ -50,6 +56,10 @@ ENTRY_LEVELLING = 0.02  # Radians per tick the heading levels during the entry (
 CRUISE_SPEED_RANGE = (0.002, 0.003)
 EXIT_SPEED_MULTIPLIER = 2.0
 EXIT_EASING = 1.03  # Speed multiplier per tick while ramping up to leave (about a second to double)
+# Head turn: how far the head angles out of the picture plane at the fastest depth change,
+# and how quickly the angle follows (so a depth hold eases the head straight, never snaps)
+HEAD_TURN = 0.5  # Radians at the fastest depth change (about 30 degrees)
+HEAD_EASING = 0.08
 TAIL_BEAT_HZ = 1.6  # Beat rate at cruise effort and tempo 1
 TAIL_SWING = 0.6  # Peak swing at the tail tip at cruise, radians (about 35 degrees)
 
@@ -177,6 +187,7 @@ class DrawingFish(Drawing):
         self._depth_tick = 0
         self._distance = 0.0
         self._speed_factor = 1.0
+        self._head_turn = 0.0
         self.hold_depth = False  # Set each tick by prevent_depth_crossings
         self.extent = np.array(extent, dtype=float)
         self._turn_bias = 0.0  # Which way round a wall turn goes once committed (+1 or -1), 0 when not turning
@@ -262,6 +273,7 @@ class DrawingFish(Drawing):
             self._face_heading()
 
         elif self._animation_stage == "finish":
+            self._turn_head(0.0)  # No longer changing depth, so the head eases straight
             speed = math.hypot(self.vector[0], self.vector[1])
             # Ramp toward the exit pace from either side, never snapping
             self._set_speed(
@@ -412,12 +424,21 @@ class DrawingFish(Drawing):
         self.shader_params[0] = self._tail_phase
         self.shader_params[1] = TAIL_SWING * (0.6 + 0.4 * self.effort)
 
+    def _turn_head(self, target: float) -> None:
+        """Ease the head's out-of-plane angle toward a target"""
+        self._head_turn += (target - self._head_turn) * HEAD_EASING
+        self.shader_params[2] = self._head_turn
+
     def _apply_distance(self, distance: float) -> None:
         """
         Shrink, slow, dim and push back the fish according to how far away it is
         :param distance: 0 when nearest, 1 at the far point
         :return:
         """
+        # Angle the head by how fast the depth is changing, relative to the fastest the cycle
+        # ever changes it (at its quarter points); receding turns one way, returning the other
+        fastest = math.pi / self._depth_period
+        self._turn_head(HEAD_TURN * max(-1.0, min(1.0, (distance - self._distance) / fastest)))
         self._distance = distance
         self.scale = self._base_scale * (1 - (1 - FAR_SCALE) * distance)
         self.color = np.full(3, 1 - (1 - FAR_TINT) * distance)

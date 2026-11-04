@@ -595,3 +595,49 @@ def test_exit_speeds_up_smoothly_to_double_pace():
     ratios = [b / a for a, b in zip(speeds[:-1], speeds[1:], strict=True)]
     assert max(ratios) <= 1.1 and min(ratios) >= 1.0 - 1e-9, "exit speed must ramp, never snap"
     assert np.isclose(speeds[-1], 2 * cruise, rtol=0.02)
+
+
+def test_head_turn_follows_how_fast_the_fish_changes_depth():
+    from ocean.drawingfish import HEAD_TURN
+
+    fish = swimming_fish_at(0.0, 0.0)
+    fish._depth_period = 600
+    turns = []
+    for _ in range(600):
+        fish.animation()
+        turns.append(float(fish.shader_params[2]))
+    assert max(turns) > 0.5 * HEAD_TURN and min(turns) < -0.5 * HEAD_TURN  # Turns one way receding, the other returning
+    assert max(abs(t) for t in turns) <= HEAD_TURN + 1e-9
+    assert max(abs(b - a) for a, b in zip(turns[:-1], turns[1:], strict=True)) < 0.02 * HEAD_TURN  # Smooth throughout
+    # Fastest depth change is at the quarter points, so the head is most turned there (a little
+    # late because of the easing) and near straight at the near and far points
+    assert 150 <= int(np.argmax(turns)) <= 175 and 450 <= int(np.argmin(turns)) <= 475
+    assert abs(turns[299]) < 0.2 * HEAD_TURN and abs(turns[599]) < 0.2 * HEAD_TURN
+
+
+def test_head_eases_straight_while_leaving():
+    fish = swimming_fish_at(0.0, 0.0)
+    fish._depth_period = 600
+    for _ in range(160):
+        fish.animation()
+    assert abs(fish.shader_params[2]) > 0.4
+    fish.go_away()
+    turns = []
+    for _ in range(60):
+        fish.animation()
+        turns.append(abs(float(fish.shader_params[2])))
+    assert turns[-1] < 0.01
+    assert all(b <= a for a, b in zip(turns[:-1], turns[1:], strict=True))  # Decays monotonically
+
+
+def test_head_straightens_when_the_depth_cycle_is_held():
+    fish = swimming_fish_at(0.0, 0.0)
+    fish._depth_period = 600
+    for _ in range(150):
+        fish.animation()
+    assert abs(fish.shader_params[2]) > 0.1
+    fish.hold_depth = True
+    for _ in range(120):
+        fish.animation()
+        fish.hold_depth = True  # Would normally be re-set each tick by prevent_depth_crossings
+    assert abs(fish.shader_params[2]) < 0.01  # Eased back to straight while held

@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: Part 13 critic; Part 14 (head turn with depth) build; PRs #20-#23 await merge
+Current target: Part 13 and 14 critics; PRs #20-#24 await merge
 Completed parts: 0, 1, 2, 3, 4, 5, 7, 8, 9 merged to main on 2026-11-03; 6 merging
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
@@ -144,6 +144,10 @@ matrix and tolerate the queue, or drop it.
   was a coin flip and a fish could dive for 9 s) fixed: vertical entries
   always angled, levelling and facing run during the entry, a culled
   entrant settles to a normal exit pace. 100 tests; gates 0.
+- Part 14: branch modernize/part-14-head-turn (stacked on Part 13); the head
+  end foreshortens by the eased depth rate, same mechanism as the tail.
+  Critic round 1: PASS; its gap (the head froze at its angle for the whole
+  exit) fixed: the head eases straight while leaving. 104 tests; gates 0.
 Part 4 round 2 critic: PASS (cast sweep never breaks). Noted for a small
 follow-up: the corner mask leaves a ~20 px ring of a touched marker; two
 comment wordings in simplescanner.py overstate paper noise and a blank

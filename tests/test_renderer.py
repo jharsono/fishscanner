@@ -206,3 +206,24 @@ def test_fish_tail_beat_foreshortens_width_but_never_moves_height(renderer):
     assert len(heights) == 1, f"the beat must not move the fish vertically: {heights}"
     assert len(widths) > 1, "the tail must foreshorten over the beat"
     gl.glDeleteProgram(shader.id)
+
+
+def test_head_turn_foreshortens_the_head_end_only(renderer):
+    from ocean.drawingfish import FISH_TRANSFORM, DrawingFish
+
+    shader = compile_program(FISH_TRANSFORM)
+    fish = DrawingFish(solid_texture((255, 0, 0, 255)), shader=shader)
+    fish.position = np.array([0.0, 0.0, 0.0])
+    fish.scale = np.array([1.0, 0.5, 1.0])
+    fish._speed_factor = 0.0
+    clear = (26, 26, 51)
+    fish.shader_params[:] = (0.0, 0.0, 0.0, 0.0)
+    renderer.render([fish])
+    x0, x1, y0, y1 = silhouette_box(read_frame(), clear)
+    fish.shader_params[2] = 0.5  # Head turned
+    renderer.render([fish])
+    tx0, tx1, ty0, ty1 = silhouette_box(read_frame(), clear)
+    assert (ty0, ty1) == (y0, y1)  # Never vertical
+    assert tx0 == x0  # The tail end (-x, left on screen) does not move
+    assert tx1 < x1  # The head end pulls in
+    gl.glDeleteProgram(shader.id)

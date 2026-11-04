@@ -302,6 +302,23 @@ the hand-over; the exit ramps, never snaps; speed profiles of several
 entries.
 Success: tests pass and Josh judges the entry natural.
 
+### Part 14: Head turns with depth  (requested by Josh 2026-11-03)
+Josh: "when transforming smaller or larger to give the illusion of z-axis
+movement, the front of the fish should have some scaling transformation
+to indicate its head is turning toward or away; slight, like the tail
+mechanism but on the head side and not as wiggly."
+Builder: the fish shader applies the tail's foreshortening to the head end
+too (`HEAD_START` 0.2 to the nose), by an angle in `params.z`; the angle
+is proportional to how fast the depth is changing relative to the fastest
+the cycle ever changes it (`HEAD_TURN` 0.5 rad at the quarter points,
+zero at the near and far points), eased with `HEAD_EASING` so a depth hold
+straightens the head rather than snapping it.
+Critic: headless tests that the head angle follows the depth rate, is
+bounded, is smooth, is largest at the quarter points and eases to zero
+when held; a GL test that it foreshortens the head end only; a render of
+the example fish at 0, 0.25 and 0.5 rad for the look.
+Success: tests pass and Josh judges it slight and natural.
+
 ## Integration critic (final, fresh context)
 
 Fresh clone, `uv sync`, `uv run fishscanner`, drop one JPG and one HEIC,
