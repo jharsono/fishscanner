@@ -265,6 +265,26 @@ cycling-until-the-crossing and resume, and a 6-fish minute with zero
 crossings; the 10-fish 5-minute acceptance above reproduced.
 Success: tests pass and Josh no longer sees fish pass through each other.
 
+### Part 12: Fluid turns  (requested by Josh 2026-11-03)
+Josh: "directional changes feel more like a bounce (think old DVD
+screensaver hitting the edge); it should be more fluid."
+Builder: a fish turns by rotating its heading a bounded amount per tick,
+never by flipping its velocity. Within a turn margin of a border (0.45 at the sides, 0.2 top and
+bottom: enough for a bursting fish's turn radius, small against the
+1.0-tall band) it turns
+away, harder the closer, committing once to the way round that curves
+toward the middle of the band; elsewhere it wanders gently and drifts back
+toward level. Speed is kept. The sprite's facing follows the heading's x
+sign through the existing y-rotation, a few degrees per tick. The hard
+velocity flip is gone.
+Critic: headless tests that a wall approach is an arc (bounded heading
+step, speed kept, one x-direction change, settles facing its heading),
+that a fish turned twice faces correctly, that turns curve toward the
+middle; a multi-fish simulation with path plots: no heading jumps, no
+fish stuck at a wall or corner, fish stay within the borders plus a small
+overshoot.
+Success: tests pass and Josh judges the turns fluid in the app.
+
 ## Integration critic (final, fresh context)
 
 Fresh clone, `uv sync`, `uv run fishscanner`, drop one JPG and one HEIC,

@@ -31,6 +31,16 @@ TICKS_PER_SECOND = 60  # Animation ticks per second, matching main_ocean.TICK_SE
 EFFORT_DWELL_TICKS = (2 * TICKS_PER_SECOND, 7 * TICKS_PER_SECOND)
 EFFORT_EASING = 0.04  # Fraction of the remaining change applied per tick (about a second to settle)
 TEMPO_RANGE = (0.8, 1.25)
+# Steering. A fish turns by rotating its heading a little each tick, never by flipping its
+# velocity, so a wall produces an arc rather than a bounce. Within TURN_MARGIN of a border it
+# turns away from it, the harder the closer; otherwise it wanders gently and drifts back toward
+# level. The sprite's facing follows the heading's x sign through a y-rotation.
+TURN_MARGIN_X = 0.45  # Distance from a side border at which a fish starts turning away
+TURN_MARGIN_Y = 0.2  # Top and bottom: enough for a bursting fish's turn radius, small against the 1.0-tall band
+TURN_RATE = 0.035  # Radians per tick at full steer: a 180 degree turn in about 1.5 s
+WANDER = 0.004  # Random heading drift per tick, radians
+LEVELLING = 0.0015  # Pull of the heading back toward horizontal, radians per tick
+FACE_RATE = 5.0  # Degrees per tick of the y-rotation that turns the sprite to face its heading
 TAIL_BEAT_HZ = 1.6  # Beat rate at cruise effort and tempo 1
 TAIL_SWING = 0.6  # Peak swing at the tail tip at cruise, radians (about 35 degrees)
 
@@ -156,6 +166,7 @@ class DrawingFish(Drawing):
         self._speed_factor = 1.0
         self.hold_depth = False  # Set each tick by prevent_depth_crossings
         self.extent = np.array(extent, dtype=float)
+        self._turn_bias = 0.0  # Which way round a wall turn goes once committed (+1 or -1), 0 when not turning
 
         # Temperament
         self.tempo = np.random.uniform(*TEMPO_RANGE)
@@ -226,28 +237,11 @@ class DrawingFish(Drawing):
                 self._depth_tick += 1
             self._apply_distance(distance_cycle(self._depth_tick, self._depth_period))
 
-            # Beyond a border and still heading out: turn around once. Checking the heading
-            # matters because a fish can start swimming already past a border (a long entry
-            # overshoots), and flipping on position alone would turn it every tick forever.
-            heading_out_x = (self.position[0] > self._right and self.vector[0] > 0) or (
-                self.position[0] < self._left and self.vector[0] < 0
-            )
-            if heading_out_x:
-                self.vector[0] = -self.vector[0]
-                self.rotation_vector[1] = 5.0
-
-            heading_out_y = (self.position[1] > self._bottom and self.vector[1] > 0) or (
-                self.position[1] < self._top and self.vector[1] < 0
-            )
-            if heading_out_y:
-                self.vector[1] = -self.vector[1]
-
-            self.rotate[1] = (self.rotate[1] + self.rotation_vector[1]) % 360
-
-            if self.rotate[1] % 180 == 0:
-                self.rotation_vector[1] = 0.0
+            self._steer()
+            self._face_heading()
 
         elif self._animation_stage == "finish":
+            self._face_heading()
             if self.position[0] > self._right + 1.0 or self.position[0] < self._left - 1.0:
                 self.is_alive = False
 
@@ -290,6 +284,62 @@ class DrawingFish(Drawing):
         if self._animation_stage != "swim":
             return float(self.position[2])
         return FAR_Z * distance_cycle(self._depth_tick + 1, self._depth_period)
+
+    def _steer(self) -> None:
+        """
+        Rotate the heading: away from any border within its turn margin (a fish that starts past a
+        border, as a long entry can leave it, just turns at the full rate), otherwise a gentle
+        wander with a pull back toward level. Speed is kept; only the direction changes.
+        :return:
+        """
+        x, y = self.position[:2]
+        away = np.array(
+            [
+                min(max((x - (self._right - TURN_MARGIN_X)) / TURN_MARGIN_X, 0.0), 1.0)
+                - min(max(((self._left + TURN_MARGIN_X) - x) / TURN_MARGIN_X, 0.0), 1.0),
+                min(max((y - (self._bottom - TURN_MARGIN_Y)) / TURN_MARGIN_Y, 0.0), 1.0)
+                - min(max(((self._top + TURN_MARGIN_Y) - y) / TURN_MARGIN_Y, 0.0), 1.0),
+            ]
+        )
+        heading = math.atan2(self.vector[1], self.vector[0])
+        speed = math.hypot(self.vector[0], self.vector[1])
+        if np.any(away):
+            urgency = min(float(np.linalg.norm(away)), 1.0)
+            target = math.atan2(-away[1], -away[0])
+            delta = (target - heading + math.pi) % (2 * math.pi) - math.pi
+            if abs(delta) > math.pi - 0.05:
+                # Heading straight at the wall: either way round is as short. Commit once to the
+                # way whose first sideways step points toward the middle of the tank, and keep it
+                # while the tie lasts, or the choice would flicker each tick. A positive heading
+                # change moves the fish sideways along (-sin h, cos h), so the sign depends on
+                # which way it is facing, not just on which side of the middle it is.
+                if self._turn_bias == 0.0:
+                    middle_x, middle_y = (self._left + self._right) / 2, (self._top + self._bottom) / 2
+                    sideways = -math.sin(heading) * (middle_x - x) + math.cos(heading) * (middle_y - y)
+                    self._turn_bias = 1.0 if sideways >= 0 else -1.0
+                delta = self._turn_bias * math.pi
+            else:
+                self._turn_bias = 0.0
+            heading += max(-TURN_RATE * urgency, min(TURN_RATE * urgency, delta))
+        else:
+            self._turn_bias = 0.0
+            heading += np.random.uniform(-WANDER, WANDER)
+            level = 0.0 if math.cos(heading) >= 0 else math.pi
+            toward_level = (level - heading + math.pi) % (2 * math.pi) - math.pi
+            heading += max(-LEVELLING, min(LEVELLING, toward_level))
+        self.vector[0] = speed * math.cos(heading)
+        self.vector[1] = speed * math.sin(heading)
+
+    def _face_heading(self) -> None:
+        """
+        Turn the sprite about y, a few degrees per tick, so it faces the way it is heading
+        :return:
+        """
+        facing_forward = (self.vector[0] >= 0) == (self._base_scale[0] >= 0)
+        target = 0.0 if facing_forward else 180.0
+        delta = (target - self.rotate[1] + 180) % 360 - 180
+        self.rotate[1] = (self.rotate[1] + max(-FACE_RATE, min(FACE_RATE, delta))) % 360
+        self.rotation_vector[1] = 0.0 if self.rotate[1] == target else FACE_RATE
 
     def _update_effort(self) -> None:
         """
@@ -346,8 +396,18 @@ class DrawingFish(Drawing):
         Start animation of fish swimming away
         :return:
         """
-        self.vector[1] = 0.0
-        self.vector[0] *= 2
+        # Leave level at double speed, the way the fish is already going if that is at all
+        # sideways, otherwise the way it is facing (a steering fish can be mid-turn, heading
+        # nearly straight up or down, and the finish stage does not steer)
+        speed = math.hypot(self.vector[0], self.vector[1])
+        if abs(self.vector[0]) > 0.2 * speed:
+            direction = math.copysign(1.0, self.vector[0])
+        else:
+            faces_base_way = (
+                abs(self.rotate[1] - 180.0) > 90.0
+            )  # Within 90 degrees of rotate 0; edge-on counts as turned
+            direction = math.copysign(1.0, self._base_scale[0]) * (1.0 if faces_base_way else -1.0)
+        self.vector = np.array([2 * speed * direction, 0.0, 0.0])
         self._speed_factor = 1.0  # Leave at full pace whatever the distance was
         self._effort_target = EFFORT_LEVELS["burst"]  # Flee
         self._animation_stage = "finish"
