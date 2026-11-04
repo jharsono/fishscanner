@@ -47,6 +47,25 @@ TURN_RATE = 0.035  # Radians per tick at full steer: a 180 degree turn in about 
 WANDER = 0.004  # Random heading drift per tick, radians
 LEVELLING = 0.0015  # Pull of the heading back toward horizontal, radians per tick
 FACE_RATE = 5.0  # Degrees per tick of the y-rotation that turns the sprite to face its heading
+# Pitch: the sprite tips its nose toward where it is heading when climbing or diving, slightly.
+# A level cruise wanders a few degrees either side of level all the time; the deadband keeps
+# that from rocking the fish, and the pitch grows from there to its ceiling by PITCH_FULL_AT.
+MAX_PITCH = 20.0  # Degrees of z-rotation from PITCH_FULL_AT on
+PITCH_DEADBAND = 5.0  # Climb or dive angles below this, in degrees, do not pitch the fish
+PITCH_FULL_AT = 45.0  # Climb or dive angle, in degrees, at which the pitch reaches MAX_PITCH
+PITCH_EASING = 0.05  # Fraction of the remaining change applied per tick (about a second to settle)
+
+
+def pitch_for_climb(climb_degrees: float) -> float:
+    """
+    Pitch for a heading's climb or dive angle (unsigned)
+    :param climb_degrees: Angle between the heading and horizontal
+    :return: Degrees of pitch, 0 inside the deadband, MAX_PITCH from PITCH_FULL_AT on
+    """
+    share = (abs(climb_degrees) - PITCH_DEADBAND) / (PITCH_FULL_AT - PITCH_DEADBAND)
+    return MAX_PITCH * max(0.0, min(1.0, share))
+
+
 # Entry and exit. A fish arrives fast and eases out to its cruising speed before it starts
 # swimming (the velocity carries over unchanged, so there is no jump at the hand-over), and
 # a fish told to leave ramps up to double its cruising speed rather than snapping to it.
@@ -293,7 +312,7 @@ class DrawingFish(Drawing):
         :return: True when the two painted areas overlap in x and y
         """
         mine, theirs = self.position[:2], other.position[:2]
-        my_size, their_size = np.abs(self.scale[:2]), np.abs(other.scale[:2])
+        my_size, their_size = self._footprint(), other._footprint()
         if after_step:
             mine = mine + self.vector[:2] * self._speed_factor * self._next_effort()
             theirs = theirs + other.vector[:2] * other._speed_factor * other._next_effort()
@@ -306,6 +325,12 @@ class DrawingFish(Drawing):
     def _next_effort(self) -> float:
         """Effort after the easing step that precedes the next move"""
         return self.effort + (self._effort_target - self.effort) * EFFORT_EASING
+
+    def _footprint(self) -> np.ndarray:
+        """Width and height of the box around the drawn, pitched sprite"""
+        w, h = np.abs(self.scale[:2])
+        c, s = abs(math.cos(math.radians(self.rotate[2]))), abs(math.sin(math.radians(self.rotate[2])))
+        return np.array([w * c + h * s, h * c + w * s])
 
     def _next_size(self) -> np.ndarray:
         """Drawn width and height after the next depth step"""
@@ -392,6 +417,18 @@ class DrawingFish(Drawing):
         delta = (target - self.rotate[1] + 180) % 360 - 180
         self.rotate[1] = (self.rotate[1] + max(-FACE_RATE, min(FACE_RATE, delta))) % 360
         self.rotation_vector[1] = 0.0 if self.rotate[1] == target else FACE_RATE
+        self._pitch_to_heading()
+
+    def _pitch_to_heading(self) -> None:
+        """
+        Tip the nose toward the heading's climb or dive, within MAX_PITCH, eased
+        :return:
+        """
+        climb = math.degrees(math.atan2(self.vector[1], abs(self.vector[0])))  # Positive is down on screen
+        # The z-rotation is applied in sprite space before the mirror that faces a fish left, so
+        # a mirrored sprite needs the opposite sign to tip the same way on screen
+        target = math.copysign(1.0, self._base_scale[0]) * math.copysign(pitch_for_climb(climb), climb)
+        self.rotate[2] += (target - self.rotate[2]) * PITCH_EASING
 
     def _update_effort(self) -> None:
         """

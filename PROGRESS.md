@@ -1,6 +1,6 @@
 # Progress (Gauntlet Loop)
 
-Current target: Part 13 and 14 critics; PRs #20-#24 await merge
+Current target: Part 15 critic; PRs #20-#25 await merge
 Completed parts: 0, 1, 2, 3, 4, 5, 7, 8, 9 merged to main on 2026-11-03; 6 merging
 Failed approaches (do not repeat):
 - Mutation-testing the scanner by sed-editing source and restoring it within
@@ -148,6 +148,14 @@ matrix and tolerate the queue, or drop it.
   end foreshortens by the eased depth rate, same mechanism as the tail.
   Critic round 1: PASS; its gap (the head froze at its angle for the whole
   exit) fixed: the head eases straight while leaving. 104 tests; gates 0.
+- Part 15: branch modernize/part-15-pitch (stacked on Part 14); the sprite
+  pitches toward its climb or dive, clamped and eased, facing-aware; overlap
+  box follows the rotated rectangle. Josh saw rocking: the pitch tracked
+  the cruise wander (~70 sub-degree wobbles per fish per minute); a 5
+  degree deadband removes them. Larger climb/dive reversals from the
+  top/bottom steering margins (~1.7/min) are unchanged; ask Josh which he
+  saw. Critic round 1 (pre-deadband): PASS, exit-pitch test added. Round 2:
+  PASS, corrected the measurement above. 115 tests; gates 0.
 Part 4 round 2 critic: PASS (cast sweep never breaks). Noted for a small
 follow-up: the corner mask leaves a ~20 px ring of a touched marker; two
 comment wordings in simplescanner.py overstate paper noise and a blank

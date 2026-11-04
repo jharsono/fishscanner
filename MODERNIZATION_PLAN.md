@@ -319,6 +319,32 @@ when held; a GL test that it foreshortens the head end only; a render of
 the example fish at 0, 0.25 and 0.5 rad for the look.
 Success: tests pass and Josh judges it slight and natural.
 
+### Part 15: Pitch with the heading  (requested by Josh 2026-11-03)
+Josh: "when the fish goes up and down the y axis there should be slight
+rotation instead of the fish staying flat, like a real fish pointing
+itself toward the surface or floor."
+Builder: `_pitch_to_heading` (run with `_face_heading` in every stage)
+eases `rotate[2]` toward `pitch_for_climb(climb)`: zero inside a 5 degree
+deadband, rising to `MAX_PITCH` 20 degrees at a 45 degree climb or dive;
+the sign is flipped for a mirrored (left-facing) sprite because the
+z-rotation is applied before the mirror. The overlap box used by
+`prevent_depth_crossings` grows to the rotated rectangle. Josh's first
+look: "sometimes a fish appears to be rocking when the up-down changes are
+close in time". Measured (critic, round 2): with the pitch tracking the
+heading exactly it followed the heading's sub-degree wander, about 70
+wobbles under 1 degree per fish per minute (the climb sits within 3
+degrees of level 75% of the time); the deadband removes those entirely.
+The real climb/dive reversals, about 1.7 per fish per minute with one in
+ten landing within 5 s of the previous, come from the top/bottom steering
+margins (TURN_MARGIN_Y against LEVELLING) and are unchanged by this part;
+if that is the rocking Josh saw, the fix is on the steering side. Easing
+0.05 reaches 90% of a step in 0.75 s and leaves up to ~10 degrees of
+carry-through for about half a second after a wall turn.
+Critic: headless tests over all four facing/direction combinations, the
+clamp and easing, levelling back to zero, pitch-aware overlap; a render of
+the example fish diving and climbing in both facings with a heading arrow.
+Success: tests pass and Josh judges it slight and natural.
+
 ## Integration critic (final, fresh context)
 
 Fresh clone, `uv sync`, `uv run fishscanner`, drop one JPG and one HEIC,
