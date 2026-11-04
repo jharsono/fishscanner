@@ -46,6 +46,16 @@ That's it. No X11, no system OpenGL packages, no logging out.
    - The fish appears in the ocean a couple of seconds after the file finishes copying; no restart needed. The terminal prints which folder it is watching at startup and otherwise stays quiet unless something went wrong
    - Photos already in the folder are loaded at startup
 
+## Phone remote
+
+When the app starts it prints a line like `Remote control: http://192.168.1.23:8080`. Open that address on a phone on the same Wi-Fi to:
+
+- **Add a fish**: take or pick a photo of a drawing. It is scanned straight away, so a photo without all four markers is turned down with a message instead of being saved; a good one is saved into `photos/` and swims in a couple of seconds later.
+- **Enable or disable fish**: a disabled fish swims off screen and an enabled one swims back in. The photo stays in `photos/` either way, and the choice is remembered across restarts (in `photos/tank.json`).
+- **Set how many fish swim at once** (1-30, 10 to start). Going over it, by adding or enabling a fish or by lowering the number, disables the oldest fish.
+
+There is no password: anyone on the same network who finds the address can use it, so use it on a network you trust. On macOS, allow incoming connections when asked the first time (see [Troubleshooting](TROUBLESHOOTING.md#the-phone-cannot-open-the-remote-control-page) if the phone cannot connect).
+
 ## Controls
 
 - **Left / Right arrows**: switch between ocean scenes

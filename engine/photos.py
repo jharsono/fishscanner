@@ -86,7 +86,7 @@ class PhotoWatcher:
     that finishes later is still picked up. After the last attempt the file is given up
     on for the rest of the session, and a file that has been scanned is not scanned
     again if it is overwritten in place. Scanning happens on a background thread; the
-    queue hands finished RGBA images to the OpenGL thread.
+    queue hands (path, RGBA image) pairs to the OpenGL thread.
     """
 
     def __init__(
@@ -143,7 +143,7 @@ class PhotoWatcher:
                 continue
             fish = scan_photo_file(path, self._scanner)
             if fish is not None:
-                self._queue.put(fish)
+                self._queue.put((path, fish))
                 self._finish(path)
                 continue
             pending.attempts += 1

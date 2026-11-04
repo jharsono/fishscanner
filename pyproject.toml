@@ -11,6 +11,9 @@ dependencies = [
     "PyOpenGL>=3.1.6",
     "glfw",
     "pillow-heif",
+    "fastapi>=0.162.0",
+    "uvicorn>=0.54.0",
+    "python-multipart>=0.0.33",
 ]
 
 [project.scripts]
@@ -21,6 +24,7 @@ dev = [
     "pytest>=8",
     "ruff>=0.6",
     "pyright>=1.1",
+    "httpx2>=2.16.0",
 ]
 
 [build-system]
@@ -28,7 +32,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-only-include = ["engine", "ocean", "main_ocean.py"]
+only-include = ["engine", "ocean", "remote", "main_ocean.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -43,6 +47,6 @@ target-version = "py311"
 select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.pyright]
-include = ["engine", "ocean", "main_ocean.py", "tests"]
+include = ["engine", "ocean", "remote", "main_ocean.py", "tests"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"

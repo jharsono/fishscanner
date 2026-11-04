@@ -109,7 +109,9 @@ def test_watcher_scans_a_file_once_it_stops_growing(scanner, tmp_path: Path, gol
         watcher.stop()
     fish = drain(queue)
     assert len(fish) == 1
-    assert int((fish[0][..., 3] != golden_alpha).sum()) == 0
+    path, scan = fish[0]
+    assert path == target
+    assert int((scan[..., 3] != golden_alpha).sum()) == 0
 
 
 def test_watcher_ignores_files_present_at_start(scanner, tmp_path: Path):
@@ -165,7 +167,9 @@ def test_watcher_retries_a_copy_that_stalls_longer_than_settle_time(scanner, tmp
         watcher.stop()
     fish = drain(queue)
     assert len(fish) == 1
-    assert int((fish[0][..., 3] != golden_alpha).sum()) == 0
+    path, scan = fish[0]
+    assert path == target
+    assert int((scan[..., 3] != golden_alpha).sum()) == 0
 
 
 def test_watcher_survives_a_truncated_heic_and_keeps_scanning(scanner, tmp_path: Path):
@@ -238,4 +242,7 @@ def test_startup_load_reports_how_many_fish_it_found(tmp_path: Path, monkeypatch
     monkeypatch.setattr(main_ocean, "PHOTOS_DIR", tmp_path)
     queue: Queue = Queue()
     assert main_ocean.load_fish_from_files(SimpleScanner(), queue) == 1
-    assert queue.qsize() == 1
+    path, scan = queue.get()
+    assert path == tmp_path / "one.jpg"
+    assert scan.shape == (600, 800, 4)
+    assert queue.empty()

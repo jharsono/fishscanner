@@ -4,6 +4,8 @@ Skipped where no OpenGL 3.3 window can be created (headless CI).
 """
 
 import warnings
+from pathlib import Path
+from queue import Queue
 
 import numpy as np
 import OpenGL.GL as gl
@@ -124,6 +126,65 @@ def test_scene_switching_does_not_accumulate_textures(renderer):
         scene.switch_background(1)
         renderer.render(scene.drawings)
     assert resources.texture_count == after_one_cycle
+    resources.release()
+
+
+def fish_scan() -> np.ndarray:
+    scan = np.zeros((600, 800, 4), dtype=np.uint8)
+    scan[200:400, 200:600] = (255, 128, 0, 255)
+    return scan
+
+
+def test_scene_follows_the_enabled_fish(renderer):
+    from ocean.drawingfish import DrawingFish
+
+    resources = main_ocean.Resources()
+    scene = main_ocean.Scene(resources)
+    scene.scans = {"a.jpg": fish_scan(), "b.jpg": fish_scan()}
+    scene.follow(["a.jpg", "b.jpg", "c.jpg"])  # No scan for c.jpg yet, so it waits
+    assert set(scene.swimming) == {"a.jpg", "b.jpg"}
+    leaving = scene.swimming["a.jpg"]
+    scene.follow(["b.jpg"])
+    assert set(scene.swimming) == {"b.jpg"}
+    assert leaving._animation_stage == "finish"  # Swims off rather than vanishing
+    assert leaving in scene.drawings
+    scene.follow(["b.jpg", "a.jpg"])
+    assert scene.swimming["a.jpg"] is not leaving  # A fresh fish swims in while the old one leaves
+    assert sum(isinstance(d, DrawingFish) for d in scene.drawings) == 3
+    resources.release()
+
+
+def test_step_registers_every_queued_scan_and_adds_only_the_enabled_fish(renderer, tmp_path: Path):
+    from ocean.roster import FishRoster
+
+    resources = main_ocean.Resources()
+    scene = main_ocean.Scene(resources)
+    roster = FishRoster(tmp_path / "tank.json", default_cap=2)
+    queue: Queue = Queue()
+    for name in ["a.jpg", "b.jpg", "c.jpg"]:
+        queue.put((tmp_path / name, fish_scan()))
+    main_ocean.step(renderer, scene, queue, roster)
+    assert queue.empty()
+    assert set(scene.scans) == {"a.jpg", "b.jpg", "c.jpg"}  # Kept, so a disabled fish can come back
+    assert set(scene.swimming) == {"b.jpg", "c.jpg"}  # The cap disabled the oldest before it swam in
+    roster.set_enabled("a.jpg", True)
+    main_ocean.step(renderer, scene, queue, roster)
+    assert set(scene.swimming) == {"c.jpg", "a.jpg"}
+    resources.release()
+
+
+def test_a_dead_fish_releases_its_texture(renderer):
+    resources = main_ocean.Resources()
+    scene = main_ocean.Scene(resources)
+    scene.scans = {"a.jpg": fish_scan()}
+    before = resources.texture_count
+    scene.follow(["a.jpg"])
+    leaving = scene.swimming["a.jpg"]
+    scene.follow([])
+    leaving.is_alive = False
+    scene.remove_dead_fish()
+    assert leaving not in scene.drawings
+    assert resources.texture_count == before
     resources.release()
 
 
