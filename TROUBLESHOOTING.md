@@ -40,9 +40,24 @@ The images are found relative to the package, so the folder you run from does no
 1. Keep the drawing inside the marked area; anything crossing the line between two markers is cropped, and a square around each corner marker is blanked
 2. Use a solid outline and fill; the background removal keeps the largest connected shape
 
+## Phone remote
+
+### The phone cannot open the remote control page
+1. The phone must be on the same Wi-Fi as the computer, and use the address from the `Remote control:` line exactly, port included.
+2. On macOS the firewall (System Settings > Network > Firewall) blocks incoming connections to an app until you allow it. If you missed or declined the prompt, allow the Python that uv installed; `uv run python -c "import os, sys; print(os.path.realpath(sys.executable))"` prints its path. Either add it under Firewall > Options, or run:
+   ```bash
+   sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add <that path>
+   sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp <that path>
+   ```
+   The path changes when uv installs a new Python version, so this may need repeating then.
+3. Some guest and venue networks stop devices from reaching each other; use a phone hotspot or a home network instead.
+
+### `Remote control unavailable, cannot listen on port 8080`
+Another program is using the port. The aquarium still runs, without the remote. Quit the other program, or change `SERVER_PORT` in `main_ocean.py`.
+
 ## Performance
 
-If animation stutters, close other GPU-heavy applications, and keep the `photos` folder to the fish you want: every photo there is scanned at startup. The app caps at 10 fish on screen and retires the oldest.
+If animation stutters, close other GPU-heavy applications, and keep the `photos` folder to the fish you want: every photo there is scanned at startup. The app caps the number of fish swimming at once (10 to start, changeable from the phone remote) and disables the oldest beyond it.
 
 ## Still having problems?
 

@@ -15,12 +15,16 @@ from ocean import IMAGES_DIR
 from ocean.drawingfish import FISH_TRANSFORM, DrawingFish, prevent_depth_crossings
 from ocean.drawingseaweed import SEAWEED_TRANSFORM, DrawingSeaweed
 from ocean.drawingstatic import DrawingStatic
+from ocean.roster import FishRoster
+from remote.server import RemoteServer, create_app, lan_address
 
 PHOTOS_DIR = Path("photos")
+STATE_FILE = PHOTOS_DIR / "tank.json"  # The fish cap and the disabled photos, kept across restarts
+SERVER_PORT = 8080  # Remote control page, opened from a phone on the same network
 WINDOW_SIZE = (800, 600)
 BACKGROUND_SCALE = (3.6, 2.0, 1.0)  # Background sprites cover this much of the world, centred on the origin
 TICK_SECONDS = 1 / 60  # Animation step, 60 times per second
-FISH_LIMIT = 10  # Maximum amount of fish to draw
+FISH_LIMIT = 10  # Default cap on fish in the tank; the remote control can change it
 
 
 class Resources:
@@ -71,7 +75,8 @@ class Scene:
             {"type": "simple", "name": "Scene 3", "background": "scene3.webp"},
         ]
         self.background_index = 0
-        self.fish_queue: Queue = Queue()  # Queue to maintain order of the fish
+        self.scans: dict[str, np.ndarray] = {}  # Every scanned photo by file name, so a disabled fish can come back
+        self.swimming: dict[str, DrawingFish] = {}  # Fish in the tank by photo name; leaving fish are not here
         self.update_background()
 
     def load_texture(self, name: str | Path) -> int:
@@ -152,15 +157,27 @@ class Scene:
             self.add_seaweed(texture, [0.0, -0.2, -0.795], [-0.3, 1.0, 1.0])
             self.add_seaweed(texture, [-0.4, -0.2, -0.795], [0.1, 0.3, 1.0])
 
-    def add_fish(self, scanned_fish: np.ndarray) -> None:
+    def add_fish(self, name: str) -> None:
+        scanned_fish = self.scans[name]
         texture = self.resources.texture(Renderer.create_texture(scanned_fish))
         fish = DrawingFish(
             texture, shader=self.fish_shader, bubble_texture_id=self.bubble_texture, extent=painted_extent(scanned_fish)
         )
         self.drawings.append(fish)
-        self.fish_queue.put(fish)
-        if self.fish_queue.qsize() > FISH_LIMIT:
-            self.fish_queue.get().go_away()
+        self.swimming[name] = fish
+
+    def follow(self, enabled: list[str]) -> None:
+        """
+        Send away the fish that are no longer enabled and add enabled fish that are not in the tank yet
+        :param enabled: Photo names of the enabled fish; a name whose scan has not arrived yet waits
+        :return:
+        """
+        wanted = set(enabled)
+        for name in [name for name in self.swimming if name not in wanted]:
+            self.swimming.pop(name).go_away()
+        for name in enabled:
+            if name not in self.swimming and name in self.scans:
+                self.add_fish(name)
 
     def remove_dead_fish(self) -> None:
         dead = [d for d in self.drawings if isinstance(d, DrawingFish) and not d.is_alive]
@@ -190,30 +207,36 @@ def load_fish_from_files(scanner: SimpleScanner, scanned_fish_queue: Queue) -> i
     """
     Scan every photo already in the photos folder
     :param scanner: Object of scanner to process photos
-    :param scanned_fish_queue: Queue the animation loop turns into fish sprites
+    :param scanned_fish_queue: Queue of (path, RGBA scan) the animation loop turns into fish sprites
     :return: Number of fish found
     """
     found = 0
     for path in list_photos(PHOTOS_DIR):
         scanned_fish = scan_photo_file(path, scanner)
         if scanned_fish is not None:
-            scanned_fish_queue.put(scanned_fish)
+            scanned_fish_queue.put((path, scanned_fish))
             found += 1
     return found
 
 
-def step(renderer: Renderer, scene: Scene, scanned_fish_queue: Queue) -> None:
+def step(renderer: Renderer, scene: Scene, scanned_fish_queue: Queue, roster: FishRoster) -> None:
     """
-    One animation tick: move sprites, add a newly scanned fish, retire dead ones
+    One animation tick: move sprites, register new scans, bring the tank in line with the enabled fish,
+    retire dead ones
     :param renderer: Object of the Engine to animate all the objects
     :param scene: Scene holding the sprites
-    :param scanned_fish_queue: Queue with scanning results
+    :param scanned_fish_queue: Queue of (path, RGBA scan) scanning results
+    :param roster: Which fish are enabled
     :return:
     """
     prevent_depth_crossings([d for d in scene.drawings if isinstance(d, DrawingFish)])
     renderer.animate(scene.drawings)
-    if not scanned_fish_queue.empty():
-        scene.add_fish(scanned_fish_queue.get())
+    # Register every waiting scan before following, so a fish the cap disables never swims in
+    while not scanned_fish_queue.empty():
+        path, scanned_fish = scanned_fish_queue.get()
+        scene.scans[path.name] = scanned_fish
+        roster.register(path.name, scanned_fish)
+    scene.follow(roster.enabled())
     scene.remove_dead_fish()
 
 
@@ -247,6 +270,7 @@ def main():
     scanner = SimpleScanner()
     scanned_fish_queue: Queue = Queue()
     PHOTOS_DIR.mkdir(exist_ok=True)
+    roster = FishRoster(STATE_FILE, default_cap=FISH_LIMIT)
     found = load_fish_from_files(scanner, scanned_fish_queue)
     print(f"Loaded {found} fish from {PHOTOS_DIR.resolve()}; drop photos there to add more")
 
@@ -254,6 +278,15 @@ def main():
     # scan above and this start() is treated as already present and will not be scanned.
     watcher = PhotoWatcher(PHOTOS_DIR, scanner, scanned_fish_queue)
     watcher.start()
+
+    # Uploads land in PHOTOS_DIR, where the watcher picks them up like any other new photo
+    server = RemoteServer(create_app(roster, PHOTOS_DIR), port=SERVER_PORT)
+    try:
+        server.start()
+    except OSError as e:  # The port is taken: the tank still runs, without the remote control
+        print(f"Remote control unavailable, cannot listen on port {SERVER_PORT}: {e}")
+    else:
+        print(f"Remote control: http://{lan_address()}:{SERVER_PORT}")
 
     def on_key(window, key, scancode, action, mods):
         if action != glfw.PRESS:
@@ -274,12 +307,13 @@ def main():
     while not glfw.window_should_close(window):
         now = glfw.get_time()
         for _ in range(clock.advance(now - last_time)):
-            step(renderer, scene, scanned_fish_queue)
+            step(renderer, scene, scanned_fish_queue, roster)
         last_time = now
         renderer.render(scene.drawings)
         glfw.swap_buffers(window)
         glfw.poll_events()
 
+    server.stop()
     watcher.stop()
     resources.release()
     Drawing.release_meshes()

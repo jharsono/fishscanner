@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FishScanner</title>
+<style>
+  :root {
+    --bg: #eaf5f8;
+    --card: #ffffff;
+    --tile: #cfe9f1;
+    --text: #12313b;
+    --muted: #5b7680;
+    --accent: #0a7f99;
+    --accent-text: #ffffff;
+    --off: #b8c6cb;
+    --error: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1d24;
+      --card: #12303a;
+      --tile: #1b4250;
+      --text: #e3f1f5;
+      --muted: #9bb6be;
+      --accent: #3fb6cf;
+      --accent-text: #06232b;
+      --off: #4a5f66;
+      --error: #f2b8b5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.5rem; margin: 8px 0 16px; }
+  .panel { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+  .add {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: inherit;
+    font-weight: 600;
+    font-size: 1.1rem;
+    text-align: center;
+    cursor: pointer;
+  }
+  .add[aria-busy="true"] { opacity: 0.6; pointer-events: none; }
+  #status { min-height: 1.4em; margin: 12px 0 0; color: var(--muted); }
+  #status.error { color: var(--error); }
+  .cap { display: flex; align-items: center; gap: 12px; }
+  .cap span { flex: 1; }
+  .cap button {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--tile);
+    color: var(--text);
+    font-size: 1.4rem;
+    cursor: pointer;
+  }
+  .cap button:disabled { opacity: 0.4; cursor: default; }
+  .cap output { min-width: 2ch; text-align: center; font-size: 1.3rem; font-weight: 600; }
+  #summary { margin: 0 0 8px; color: var(--muted); }
+  #fish {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .fish { background: var(--card); border-radius: 14px; padding: 8px; }
+  .fish img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: contain;
+    background: var(--tile);
+    border-radius: 10px;
+  }
+  .fish.off img { opacity: 0.35; filter: grayscale(1); }
+  .fish label { display: flex; align-items: center; gap: 8px; padding: 8px 4px 2px; cursor: pointer; }
+  .fish input {
+    appearance: none;
+    flex: none;
+    width: 44px;
+    height: 26px;
+    margin: 0;
+    border-radius: 13px;
+    background: var(--off);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .fish input::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+    transition: transform 0.15s;
+  }
+  .fish input:checked { background: var(--accent); }
+  .fish input:checked::after { transform: translateX(18px); }
+  #empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>FishScanner</h1>
+
+  <section class="panel">
+    <label class="add" id="add" for="photo">Add a fish</label>
+    <input id="photo" type="file" accept="image/*" hidden>
+    <p id="status" role="status"></p>
+  </section>
+
+  <section class="panel cap">
+    <span>Fish in the tank at once</span>
+    <button id="fewer" type="button" aria-label="Fewer fish">&minus;</button>
+    <output id="cap">&nbsp;</output>
+    <button id="more" type="button" aria-label="More fish">+</button>
+  </section>
+
+  <p id="summary"></p>
+  <ul id="fish"></ul>
+  <p id="empty" hidden>No fish yet. Take a photo of a drawing to add one.</p>
+</main>
+<script>
+  const add = document.getElementById("add");
+  const input = document.getElementById("photo");
+  const status = document.getElementById("status");
+  const capOutput = document.getElementById("cap");
+  const fewer = document.getElementById("fewer");
+  const more = document.getElementById("more");
+  const summary = document.getElementById("summary");
+  const list = document.getElementById("fish");
+  const empty = document.getElementById("empty");
+  let state = null;
+  let shown = "";
+
+  function say(message, isError = false) {
+    status.textContent = message;
+    status.classList.toggle("error", isError);
+  }
+
+  async function errorText(response) {
+    try {
+      const body = await response.json();
+      if (typeof body.detail === "string") return body.detail;
+    } catch {
+      // Not JSON: fall through to the status code
+    }
+    return `Something went wrong (${response.status}).`;
+  }
+
+  function fishUrl(name) {
+    return `/api/fish/${encodeURIComponent(name)}`;
+  }
+
+  function card(fish) {
+    const item = document.createElement("li");
+    item.className = fish.enabled ? "fish" : "fish off";
+    const image = document.createElement("img");
+    image.src = `${fishUrl(fish.name)}/thumbnail`;
+    image.alt = fish.name;
+    const label = document.createElement("label");
+    const toggle = document.createElement("input");
+    toggle.type = "checkbox";
+    toggle.setAttribute("role", "switch");
+    toggle.checked = fish.enabled;
+    toggle.addEventListener("change", () => send(fishUrl(fish.name), { enabled: toggle.checked }));
+    const caption = document.createElement("span");
+    caption.textContent = fish.enabled ? "Swimming" : "Resting";
+    label.append(toggle, caption);
+    item.append(image, label);
+    return item;
+  }
+
+  function render(next) {
+    state = next;
+    const text = JSON.stringify(next);
+    if (text === shown) return;
+    shown = text;
+    capOutput.textContent = next.cap;
+    fewer.disabled = next.cap <= next.min_cap;
+    more.disabled = next.cap >= next.max_cap;
+    const swimming = next.fish.filter((fish) => fish.enabled).length;
+    summary.textContent = next.fish.length ? `${swimming} swimming, ${next.fish.length - swimming} resting` : "";
+    list.replaceChildren(...next.fish.map(card));
+    empty.hidden = next.fish.length > 0;
+  }
+
+  async function refresh() {
+    try {
+      const response = await fetch("/api/fish");
+      if (response.ok) render(await response.json());
+    } catch {
+      say("Can't reach the aquarium. Is it still running?", true);
+    }
+  }
+
+  async function send(url, body) {
+    try {
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (response.ok) {
+        render(await response.json());
+        return;
+      }
+      say(await errorText(response), true);
+    } catch {
+      say("Can't reach the aquarium. Is it still running?", true);
+    }
+    shown = "";  // Put any switch the failed request flipped back where it was
+    refresh();
+  }
+
+  fewer.addEventListener("click", () => send("/api/settings", { cap: state.cap - 1 }));
+  more.addEventListener("click", () => send("/api/settings", { cap: state.cap + 1 }));
+
+  input.addEventListener("change", async () => {
+    const file = input.files[0];
+    if (!file) return;
+    const form = new FormData();
+    form.append("photo", file);
+    add.setAttribute("aria-busy", "true");
+    say("Scanning your fish…");
+    try {
+      const response = await fetch("/api/photos", { method: "POST", body: form });
+      if (response.ok) {
+        say("Got it! Your fish will swim in shortly.");
+        setTimeout(refresh, 2500);
+      } else {
+        say(await errorText(response), true);
+      }
+    } catch {
+      say("Couldn't send the photo. Is the aquarium still running?", true);
+    } finally {
+      input.value = "";  // So the same photo can be picked again
+      add.removeAttribute("aria-busy");
+    }
+  });
+
+  // Fish also arrive from the photos folder and from other phones, so keep the list fresh
+  setInterval(() => {
+    if (!document.hidden) refresh();
+  }, 3000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refresh();
+  });
+  refresh();
+</script>
+</body>
+</html>
