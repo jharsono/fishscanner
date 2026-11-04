@@ -641,3 +641,92 @@ def test_head_straightens_when_the_depth_cycle_is_held():
         fish.animation()
         fish.hold_depth = True  # Would normally be re-set each tick by prevent_depth_crossings
     assert abs(fish.shader_params[2]) < 0.01  # Eased back to straight while held
+
+
+@pytest.mark.parametrize(
+    ("vx", "vy", "base_sign", "rotate_y", "expected_sign"),
+    [
+        (0.003, 0.002, 1, 0.0, 1),  # Facing right, diving (y grows downwards): nose tips down
+        (0.003, -0.002, 1, 0.0, -1),  # Facing right, climbing
+        (-0.003, 0.002, -1, 0.0, -1),  # Facing left by mirror, diving: the z rotation is applied before the mirror
+        (-0.003, -0.002, -1, 0.0, 1),  # Facing left by mirror, climbing
+        (-0.003, 0.002, 1, 180.0, 1),  # Facing left by a y turn (the usual case after a wall), diving
+        (-0.003, -0.002, 1, 180.0, -1),  # Facing left by a y turn, climbing
+    ],
+)
+def test_fish_pitches_its_nose_toward_where_it_is_heading(vx, vy, base_sign, rotate_y, expected_sign):
+    from ocean.drawingfish import MAX_PITCH
+
+    fish = swimming_fish_beyond([0.0, -0.2, 0.0], [vx, vy, 0.0])
+    fish._base_scale[0] = base_sign * abs(fish._base_scale[0])
+    fish.rotate[1] = rotate_y
+    fish._steer = lambda: None  # Hold the heading; steering would level it during the run
+    for _ in range(150):  # Long enough for the eased pitch to settle
+        fish.animation()
+    from ocean.drawingfish import pitch_for_climb
+
+    pitch = fish.rotate[2]
+    assert np.sign(pitch) == expected_sign
+    assert 0 < abs(pitch) <= MAX_PITCH
+    assert np.isclose(abs(pitch), pitch_for_climb(np.degrees(np.arctan2(abs(vy), abs(vx)))), atol=1.0)
+
+
+def test_pitch_ignores_the_small_wander_of_a_level_cruise():
+    """A fish cruising level keeps crossing a few degrees above and below level; it must not rock."""
+    fish = swimming_fish_beyond([0.0, -0.2, 0.0], [0.003, 0.0, 0.0])
+    fish._steer = lambda: None  # Drive the heading by hand
+    worst = 0.0
+    for tick in range(600):
+        climb = np.radians(4.0 if (tick // 30) % 2 == 0 else -4.0)  # Dithering 4 degrees either side, every half second
+        fish.vector = np.array([0.003 * np.cos(climb), 0.003 * np.sin(climb), 0.0])
+        fish.animation()
+        worst = max(worst, abs(fish.rotate[2]))
+    assert worst < 0.5, f"pitch rocked to {worst:.2f} degrees on a level cruise"
+
+
+def test_pitch_mapping_has_a_deadband_and_a_ceiling():
+    from ocean.drawingfish import MAX_PITCH, PITCH_DEADBAND, PITCH_FULL_AT, pitch_for_climb
+
+    assert pitch_for_climb(0.0) == 0.0 and pitch_for_climb(PITCH_DEADBAND) == 0.0
+    assert 0 < pitch_for_climb(PITCH_DEADBAND + 5) < MAX_PITCH
+    assert np.isclose(pitch_for_climb((PITCH_DEADBAND + PITCH_FULL_AT) / 2), MAX_PITCH / 2)  # Linear ramp
+    assert pitch_for_climb(PITCH_FULL_AT) == MAX_PITCH and pitch_for_climb(90.0) == MAX_PITCH
+
+
+def test_pitch_is_slight_and_eases():
+    from ocean.drawingfish import MAX_PITCH
+
+    fish = swimming_fish_beyond([0.0, -0.2, 0.0], [0.001, 0.003, 0.0])  # Steep dive, 72 degrees
+    pitches = []
+    for _ in range(60):
+        fish.animation()
+        pitches.append(fish.rotate[2])
+    assert max(pitches) <= MAX_PITCH + 1e-9
+    assert max(abs(b - a) for a, b in zip([0.0] + pitches[:-1], pitches, strict=True)) < 0.3 * MAX_PITCH  # No snap
+    fish.vector = np.array([0.003, 0.0, 0.0])  # Level off
+    for _ in range(120):
+        fish.animation()
+    assert abs(fish.rotate[2]) < 0.5
+
+
+def test_overlap_accounts_for_a_pitched_fish():
+    a = swimming_fish_at(0.0, 0.0)
+    b = swimming_fish_at(1.05, 0.0)  # Just clear when both are level (half widths 0.5 + 0.5)
+    assert not a.overlaps(b)
+    a.rotate[2] = 20.0  # Pitched: its rotated rectangle reaches further in x
+    assert a.overlaps(b)
+
+
+def test_pitch_eases_level_while_leaving():
+    fish = swimming_fish_beyond([0.0, -0.2, 0.0], [0.002, 0.003, 0.0])  # Steep dive
+    fish._steer = lambda: None
+    for _ in range(150):
+        fish.animation()
+    assert fish.rotate[2] > 15
+    fish.go_away()
+    pitches = []
+    for _ in range(90):
+        fish.animation()
+        pitches.append(abs(fish.rotate[2]))
+    assert pitches[-1] < 0.5
+    assert all(b <= a for a, b in zip(pitches[:-1], pitches[1:], strict=True))  # Decays monotonically
