@@ -170,7 +170,7 @@ def test_fish_leaving_from_the_far_point_exits_at_full_pace():
     fish.go_away()
     before = fish.position.copy()
     fish.animation()
-    assert np.isclose(abs((fish.position - before)[0]), abs(fish.vector[0]))
+    assert np.isclose(abs((fish.position - before)[0]), abs(fish.vector[0]) * fish.effort)
 
 
 def count_direction_changes(fish: DrawingFish, axis: int, ticks: int) -> int:
@@ -184,11 +184,17 @@ def count_direction_changes(fish: DrawingFish, axis: int, ticks: int) -> int:
     return changes
 
 
+def hold_effort(fish: DrawingFish, effort: float) -> None:
+    fish.effort = fish._effort_target = effort
+    fish._effort_ticks_left = 10**6
+
+
 def swimming_fish_beyond(position: list[float], vector: list[float]) -> DrawingFish:
     """A fish already past a border and still heading out, as a long entry animation can leave it."""
     fish = DrawingFish(texid=1)
     start_swimming(fish)
     fish._depth_period = 10**6  # Keep full speed for a clear count
+    hold_effort(fish, 1.0)
     fish.position = np.array(position)
     fish.vector = np.array(vector)
     return fish
@@ -227,3 +233,83 @@ def test_fish_beyond_a_corner_turns_once_on_each_axis():
         last = now
     assert (x_changes, y_changes) == (1, 1)
     assert fish.rotate[1] == 180 and fish.rotation_vector[1] == 0
+
+
+def test_each_fish_has_its_own_tempo():
+    tempos = set()
+    for seed in range(5):
+        np.random.seed(seed)
+        tempos.add(round(DrawingFish(texid=1).tempo, 4))
+    assert len(tempos) == 5
+
+
+def test_effort_ebbs_and_flows_within_bounds():
+    from ocean.drawingfish import EFFORT_LEVELS
+
+    fish = DrawingFish(texid=1)
+    start_swimming(fish)
+    efforts = []
+    for _ in range(60 * 60):  # A minute of swimming
+        fish.animation()
+        efforts.append(fish.effort)
+    assert min(EFFORT_LEVELS.values()) - 1e-6 <= min(efforts)
+    assert max(efforts) <= max(EFFORT_LEVELS.values()) + 1e-6
+    assert max(efforts) - min(efforts) > 0.5, "effort never changed"
+    # Transitions are eased, never a jump
+    assert max(abs(b - a) for a, b in zip(efforts[:-1], efforts[1:], strict=True)) < 0.1
+
+
+def test_speed_and_tail_beat_follow_effort():
+    fish = DrawingFish(texid=1)
+    start_swimming(fish)
+    fish._depth_period = 10**6
+    hold_effort(fish, 0.5)
+    before = fish.position.copy()
+    phase_before = fish._tail_phase
+    fish.animation()
+    slow_step = np.linalg.norm((fish.position - before)[:2])
+    slow_beat = fish._tail_phase - phase_before
+    hold_effort(fish, 2.0)
+    before = fish.position.copy()
+    phase_before = fish._tail_phase
+    fish.animation()
+    fast_step = np.linalg.norm((fish.position - before)[:2])
+    fast_beat = fish._tail_phase - phase_before
+    assert np.isclose(fast_step / slow_step, 4.0, rtol=0.01)
+    assert fast_beat > slow_beat * 1.5
+    assert fish.shader_params[0] == fish._tail_phase
+    assert fish.shader_params[1] > 0
+
+
+def test_fish_told_to_leave_bursts():
+    from ocean.drawingfish import EFFORT_LEVELS
+
+    fish = DrawingFish(texid=1)
+    start_swimming(fish)
+    fish.go_away()
+    assert fish._effort_target == EFFORT_LEVELS["burst"]
+
+
+def test_effort_always_changes_gear_when_re_picked():
+    fish = DrawingFish(texid=1)
+    start_swimming(fish)
+    seen = []
+    for _ in range(60 * 120):
+        before = fish._effort_target
+        fish.animation()
+        if fish._effort_target != before:
+            seen.append((before, fish._effort_target))
+    assert len(seen) >= 10
+    assert all(a != b for a, b in seen)
+
+
+def test_fish_end_up_out_of_phase():
+    phases = set()
+    for seed in range(4):
+        np.random.seed(seed)
+        fish = DrawingFish(texid=1)
+        start_swimming(fish)
+        for _ in range(600):
+            fish.animation()
+        phases.add(round(fish._tail_phase % (2 * np.pi), 2))
+    assert len(phases) == 4

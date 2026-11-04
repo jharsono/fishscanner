@@ -45,6 +45,7 @@ class Drawing:
         self.rotate = np.array([0.0, 0.0, 0.0])
         self.scale = np.array([1.0, 1.0, 1.0])
         self.color = np.array([1.0, 1.0, 1.0])
+        self.shader_params = np.zeros(4, dtype=np.float32)  # Passed to the program as `params`
         # Transparent sprites are rendered in a second pass without depth writes
         self.is_transparent = False
 
@@ -65,12 +66,11 @@ class Drawing:
     def texid(self) -> int:
         return self._texid
 
-    def render(self, projection: np.ndarray, default_shader: ShaderProgram, time: float = 0.0) -> None:
+    def render(self, projection: np.ndarray, default_shader: ShaderProgram) -> None:
         """
         Render sprite with attached texture and shader
         :param projection: Camera projection matrix
         :param default_shader: Program used when the sprite has none of its own
-        :param time: Seconds since the app started, for continuous shader motion
         :return:
         """
         shader = self._shader or default_shader
@@ -79,7 +79,7 @@ class Drawing:
         gl.glUniformMatrix4fv(shader.projection, 1, gl.GL_TRUE, projection)
         gl.glUniform3f(shader.color, *self.color)
         gl.glUniform1f(shader.timer, self._time_counter)
-        gl.glUniform1f(shader.time, time)
+        gl.glUniform4f(shader.params, *self.shader_params)
         self._time_counter += self.step_animation_timer
         # If timer came to border - go back
         if self._time_counter >= self.max_animation_timer or self._time_counter <= 0:
