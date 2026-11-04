@@ -285,6 +285,23 @@ fish stuck at a wall or corner, fish stay within the borders plus a small
 overshoot.
 Success: tests pass and Josh judges the turns fluid in the app.
 
+### Part 13: Ease the entry and exit  (requested by Josh 2026-11-03)
+Josh: "on the fish entry, especially when opening the app, there's no ease
+out for the speed change; it's unnatural." A fish entered at 0.02 per tick
+and, when its entry timer ran out, had its velocity replaced by a cruising
+one of ~0.0025: an eightfold snap. The exit doubled speed instantly.
+Builder: the cruising speed is chosen at entry; the entry speed decays
+toward it by the fish's water resistance every tick, continuing into
+swimming if the entry was short; the velocity carries over into swimming
+unchanged (no re-direction); a fish told to leave ramps up to double speed
+at 3% per tick instead of snapping. Vertical entries always come in
+at an angle, face the way they are going, and level out during the entry.
+Critic: tests that the entry speed never rises and never drops by more
+than 10% in a tick, ends at the cruising speed, keeps its heading across
+the hand-over; the exit ramps, never snaps; speed profiles of several
+entries.
+Success: tests pass and Josh judges the entry natural.
+
 ## Integration critic (final, fresh context)
 
 Fresh clone, `uv sync`, `uv run fishscanner`, drop one JPG and one HEIC,

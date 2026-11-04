@@ -41,6 +41,15 @@ TURN_RATE = 0.035  # Radians per tick at full steer: a 180 degree turn in about 
 WANDER = 0.004  # Random heading drift per tick, radians
 LEVELLING = 0.0015  # Pull of the heading back toward horizontal, radians per tick
 FACE_RATE = 5.0  # Degrees per tick of the y-rotation that turns the sprite to face its heading
+# Entry and exit. A fish arrives fast and eases out to its cruising speed before it starts
+# swimming (the velocity carries over unchanged, so there is no jump at the hand-over), and
+# a fish told to leave ramps up to double its cruising speed rather than snapping to it.
+ENTRY_SPEED = 0.02
+ENTRY_SIDEWAYS = (0.4, 0.8)  # Horizontal share of a vertical entry's heading, before normalising
+ENTRY_LEVELLING = 0.02  # Radians per tick the heading levels during the entry (about 1 degree)
+CRUISE_SPEED_RANGE = (0.002, 0.003)
+EXIT_SPEED_MULTIPLIER = 2.0
+EXIT_EASING = 1.03  # Speed multiplier per tick while ramping up to leave (about a second to double)
 TAIL_BEAT_HZ = 1.6  # Beat rate at cruise effort and tempo 1
 TAIL_SWING = 0.6  # Peak swing at the tail tip at cruise, radians (about 35 degrees)
 
@@ -126,7 +135,6 @@ class DrawingFish(Drawing):
         super().__init__(texid, grid_x, grid_y, shader)
         self.is_transparent = True  # Mark fish as transparent for proper rendering
         self._base_scale = np.array([1.0, 0.75, 0.3])  # Size when nearest; the sign of x is the facing direction
-        self.vector = np.array([0, 0.02, 0.0])
         self.is_alive = True  # The fish will be deleted from the drawing list when it False
 
         self._left = -1.5
@@ -138,23 +146,28 @@ class DrawingFish(Drawing):
         entry_direction = np.random.randint(4)
         if entry_direction == 0:  # From left
             self.position = np.array([-2.0, np.random.uniform(self._top, self._bottom), 0.0])
-            self.vector = np.array([0.02, 0.0, 0.0])
+            heading = np.array([1.0, 0.0])
         elif entry_direction == 1:  # From right
             self.position = np.array([2.0, np.random.uniform(self._top, self._bottom), 0.0])
-            self.vector = np.array([-0.02, 0.0, 0.0])
-            self._base_scale[0] = -abs(self._base_scale[0])  # Face left
+            heading = np.array([-1.0, 0.0])
         elif entry_direction == 2:  # From top
             self.position = np.array([np.random.uniform(self._left, self._right), -1, 0.0])
-            self.vector = np.array([0.0, 0.02, 0.0])
+            heading = np.array([0.0, 1.0])
         else:  # From bottom
             self.position = np.array([np.random.uniform(self._left, self._right), 0.5, 0.0])
-            self.vector = np.array([0.0, -0.02, 0.0])
+            heading = np.array([0.0, -1.0])
 
-        # Randomly flip horizontal direction for variety
-        if np.random.randint(2) == 0 and (entry_direction in [2, 3]):  # Only for vertical entry
-            self._base_scale[0] = -self._base_scale[0]
-            self.vector[0] = np.random.uniform(-0.01, 0.01)  # Add slight horizontal movement
+        # Vertical entries always come in at an angle, so the fish has a side to face and levels
+        # out during the entry instead of diving straight into the band
+        if entry_direction in [2, 3]:
+            heading[0] = np.random.choice([-1.0, 1.0]) * np.random.uniform(*ENTRY_SIDEWAYS)
+            heading /= np.linalg.norm(heading)
+        if heading[0] < 0:
+            self._base_scale[0] = -abs(self._base_scale[0])  # Face the way we are going
         self.scale = self._base_scale.copy()
+        self.vector = np.array([heading[0] * ENTRY_SPEED, heading[1] * ENTRY_SPEED, 0.0])
+        self._cruise_speed = np.random.uniform(*CRUISE_SPEED_RANGE)
+        self._exit_speed = 0.0
 
         # Parameters for animations
         self._animation_stage = "init"
@@ -182,17 +195,17 @@ class DrawingFish(Drawing):
         self._bubble_speed_y = -0.01
         self._bubbles = []
 
-    def _init_fish_velocity(self) -> None:
+    def _set_speed(self, speed: float) -> None:
+        """Keep the heading, change the pace"""
+        current = math.hypot(self.vector[0], self.vector[1])
+        if current > 0:
+            self.vector[:2] *= speed / current
+
+    def _start_swimming(self) -> None:
         """
-        Setup initial values for velocity vector
+        Hand over from the entry to swimming; the velocity carries over unchanged
         :return:
         """
-        self.vector = np.array([np.random.uniform(0.002, 0.003), np.random.uniform(0.001, 0.002), 0.0])
-        if self._base_scale[0] < 0:
-            self.vector[0] = -self.vector[0]
-        if np.random.randint(2) == 0:
-            self.vector[1] = -self.vector[1]
-
         self._bubble_random_frequency = 500
         self._bubble_deviation_x = 0.1
         self._bubble_speed_y = -0.005
@@ -223,13 +236,21 @@ class DrawingFish(Drawing):
         self.position += self.vector * self._speed_factor * self.effort
         self._process_bubbles()
 
+        if self._animation_stage != "finish":
+            # Ease out from the entry speed to the cruising speed; a short entry may hand over
+            # before the fish has slowed all the way, so this carries on into swimming
+            self._set_speed(
+                max(self._cruise_speed, math.hypot(self.vector[0], self.vector[1]) * self._water_resistance)
+            )
+
         if self._animation_stage == "init":
             self._init_animation_step -= 1
             self._bubble_random_frequency += 0.1
-            self.vector[1] *= self._water_resistance
+            self._level(ENTRY_LEVELLING)
+            self._face_heading()
             # Finis init animation
             if self._init_animation_step == 0:
-                self._init_fish_velocity()
+                self._start_swimming()
                 self._animation_stage = "swim"
 
         elif self._animation_stage == "swim":
@@ -241,6 +262,13 @@ class DrawingFish(Drawing):
             self._face_heading()
 
         elif self._animation_stage == "finish":
+            speed = math.hypot(self.vector[0], self.vector[1])
+            # Ramp toward the exit pace from either side, never snapping
+            self._set_speed(
+                min(self._exit_speed, speed * EXIT_EASING)
+                if speed < self._exit_speed
+                else max(self._exit_speed, speed / EXIT_EASING)
+            )
             self._face_heading()
             if self.position[0] > self._right + 1.0 or self.position[0] < self._left - 1.0:
                 self.is_alive = False
@@ -324,9 +352,21 @@ class DrawingFish(Drawing):
         else:
             self._turn_bias = 0.0
             heading += np.random.uniform(-WANDER, WANDER)
-            level = 0.0 if math.cos(heading) >= 0 else math.pi
-            toward_level = (level - heading + math.pi) % (2 * math.pi) - math.pi
-            heading += max(-LEVELLING, min(LEVELLING, toward_level))
+            heading = self._levelled(heading, LEVELLING)
+        self.vector[0] = speed * math.cos(heading)
+        self.vector[1] = speed * math.sin(heading)
+
+    @staticmethod
+    def _levelled(heading: float, rate: float) -> float:
+        """Heading pulled toward horizontal (whichever way is nearer) by at most rate"""
+        level = 0.0 if math.cos(heading) >= 0 else math.pi
+        toward_level = (level - heading + math.pi) % (2 * math.pi) - math.pi
+        return heading + max(-rate, min(rate, toward_level))
+
+    def _level(self, rate: float) -> None:
+        """Turn the heading toward horizontal by at most rate, keeping the speed"""
+        speed = math.hypot(self.vector[0], self.vector[1])
+        heading = self._levelled(math.atan2(self.vector[1], self.vector[0]), rate)
         self.vector[0] = speed * math.cos(heading)
         self.vector[1] = speed * math.sin(heading)
 
@@ -396,9 +436,9 @@ class DrawingFish(Drawing):
         Start animation of fish swimming away
         :return:
         """
-        # Leave level at double speed, the way the fish is already going if that is at all
-        # sideways, otherwise the way it is facing (a steering fish can be mid-turn, heading
-        # nearly straight up or down, and the finish stage does not steer)
+        # Leave level, ramping up to double speed, the way the fish is already going if that is
+        # at all sideways, otherwise the way it is facing (a steering fish can be mid-turn,
+        # heading nearly straight up or down, and the finish stage does not steer)
         speed = math.hypot(self.vector[0], self.vector[1])
         if abs(self.vector[0]) > 0.2 * speed:
             direction = math.copysign(1.0, self.vector[0])
@@ -407,7 +447,8 @@ class DrawingFish(Drawing):
                 abs(self.rotate[1] - 180.0) > 90.0
             )  # Within 90 degrees of rotate 0; edge-on counts as turned
             direction = math.copysign(1.0, self._base_scale[0]) * (1.0 if faces_base_way else -1.0)
-        self.vector = np.array([2 * speed * direction, 0.0, 0.0])
+        self.vector = np.array([speed * direction, 0.0, 0.0])
+        self._exit_speed = EXIT_SPEED_MULTIPLIER * self._cruise_speed  # A culled entrant settles to a normal exit pace
         self._speed_factor = 1.0  # Leave at full pace whatever the distance was
         self._effort_target = EFFORT_LEVELS["burst"]  # Flee
         self._animation_stage = "finish"

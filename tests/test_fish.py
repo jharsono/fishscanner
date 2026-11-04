@@ -171,8 +171,9 @@ def test_fish_leaving_from_the_far_point_exits_at_full_pace():
         fish.animation()
     fish.go_away()
     before = fish.position.copy()
+    pace = abs(fish.vector[0])
     fish.animation()
-    assert np.isclose(abs((fish.position - before)[0]), abs(fish.vector[0]) * fish.effort)
+    assert np.isclose(abs((fish.position - before)[0]), pace * fish.effort)
 
 
 def count_direction_changes(fish: DrawingFish, axis: int, ticks: int) -> int:
@@ -199,6 +200,7 @@ def swimming_fish_beyond(position: list[float], vector: list[float]) -> DrawingF
     hold_effort(fish, 1.0)
     fish.position = np.array(position)
     fish.vector = np.array(vector)
+    fish._cruise_speed = float(np.hypot(vector[0], vector[1]))  # This is its pace; nothing eases it away
     return fish
 
 
@@ -315,6 +317,7 @@ def swimming_fish_at(x: float, y: float) -> DrawingFish:
     fish._depth_period = 600
     fish.position = np.array([x, y, 0.0])
     fish.vector = np.array([0.0, 0.0, 0.0])  # Hold still so the test is about depth, not motion
+    fish._cruise_speed = 0.0
     return fish
 
 
@@ -509,3 +512,86 @@ def test_turn_at_the_top_or_bottom_curves_toward_the_tank_centre(wall_y, vy):
         left.animation()
         right.animation()
     assert left.position[0] > -0.8 and right.position[0] < 0.8  # Each arcs toward x = 0
+
+
+def speed_of(fish: DrawingFish) -> float:
+    return float(np.hypot(fish.vector[0], fish.vector[1]))
+
+
+@pytest.mark.parametrize("seed", [0, 1, 3, 5])  # One seed per entry direction
+def test_entry_eases_out_to_cruising_speed_with_no_jump_into_swimming(seed):
+    from ocean.drawingfish import ENTRY_SPEED
+
+    np.random.seed(seed)
+    fish = DrawingFish(texid=1)
+    hold_effort(fish, 1.0)
+    assert np.isclose(speed_of(fish), ENTRY_SPEED)
+    speeds = [speed_of(fish)]
+    stage_changed_at = None
+    for tick in range(fish._init_animation_step + 60):
+        fish.animation()
+        speeds.append(speed_of(fish))
+        if stage_changed_at is None and fish._animation_stage == "swim":
+            stage_changed_at = tick
+    ratios = [b / a for a, b in zip(speeds[:-1], speeds[1:], strict=True)]
+    assert max(ratios) <= 1.0 + 1e-9, "the fish sped up during its entry"
+    assert min(ratios) >= 0.9, "a speed jump: entry speed must ease out, never snap"
+    assert stage_changed_at is not None
+    assert np.isclose(speeds[-1], fish._cruise_speed) and 0.002 <= fish._cruise_speed <= 0.003
+
+
+@pytest.mark.parametrize("seed", [0, 1, 3, 5])
+def test_entry_heading_changes_gradually_with_no_jump_into_swimming(seed):
+    from ocean.drawingfish import ENTRY_LEVELLING, TURN_RATE, WANDER
+
+    np.random.seed(seed)
+    fish = DrawingFish(texid=1)
+    hold_effort(fish, 1.0)
+    headings = [heading(fish)]
+    for _ in range(fish._init_animation_step + 30):
+        fish.animation()
+        headings.append(heading(fish))
+    steps = [abs((b - a + np.pi) % (2 * np.pi) - np.pi) for a, b in zip(headings[:-1], headings[1:], strict=True)]
+    assert max(steps) <= max(ENTRY_LEVELLING, TURN_RATE) + WANDER + 1e-9
+    assert fish._animation_stage == "swim"
+
+
+@pytest.mark.parametrize("seed", [3, 5])  # Enter from the top and the bottom
+def test_vertical_entry_arrives_level_and_facing_its_way(seed):
+    np.random.seed(seed)
+    fish = DrawingFish(texid=1)
+    assert abs(fish.vector[0]) > 0  # Never dead vertical
+    hold_effort(fish, 1.0)
+    for _ in range(fish._init_animation_step):
+        fish.animation()
+    assert abs(np.degrees(np.arctan2(abs(fish.vector[1]), abs(fish.vector[0])))) < 25  # Near level at hand-over
+    faces_its_heading = 0.0 if (fish.vector[0] >= 0) == (fish._base_scale[0] >= 0) else 180.0
+    assert fish.rotate[1] == faces_its_heading
+
+
+def test_short_entry_keeps_easing_to_cruise_while_swimming():
+    np.random.seed(0)
+    fish = DrawingFish(texid=1)
+    hold_effort(fish, 1.0)
+    fish._water_resistance = 0.98
+    fish._init_animation_step = 60  # Too short to slow all the way: 0.02 * 0.98^60 = 0.006
+    for _ in range(60):
+        fish.animation()
+    assert fish._animation_stage == "swim" and speed_of(fish) > 1.5 * fish._cruise_speed
+    for _ in range(120):
+        fish.animation()
+    assert np.isclose(speed_of(fish), fish._cruise_speed)
+
+
+def test_exit_speeds_up_smoothly_to_double_pace():
+    fish = swimming_fish_beyond([0.0, -0.2, 0.0], [0.003, 0.0, 0.0])
+    cruise = speed_of(fish)
+    speeds = [cruise]
+    fish.go_away()
+    speeds.append(speed_of(fish))
+    for _ in range(120):
+        fish.animation()
+        speeds.append(speed_of(fish))
+    ratios = [b / a for a, b in zip(speeds[:-1], speeds[1:], strict=True)]
+    assert max(ratios) <= 1.1 and min(ratios) >= 1.0 - 1e-9, "exit speed must ramp, never snap"
+    assert np.isclose(speeds[-1], 2 * cruise, rtol=0.02)
