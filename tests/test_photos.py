@@ -205,3 +205,26 @@ def test_watcher_survives_the_folder_being_removed_and_recreated(scanner, tmp_pa
     finally:
         watcher.stop()
     assert len(drain(queue)) == 1
+
+
+def test_painted_extent_is_the_opaque_bounding_box_fraction():
+    from main_ocean import painted_extent
+
+    canvas = np.zeros((100, 200, 4), dtype=np.uint8)
+    canvas[30:70, 50:150, 3] = 255  # Centred: 40 rows of 100, 100 columns of 200
+    assert painted_extent(canvas) == (0.5, 0.4)
+    assert painted_extent(np.zeros((10, 10, 4), dtype=np.uint8)) == (1.0, 1.0)
+
+
+def test_painted_extent_contains_off_centre_paint_when_centred_on_the_sprite():
+    """The scanner keeps the drawing wherever it sits on the page, so the box must reach it from the centre."""
+    from main_ocean import painted_extent
+
+    canvas = np.zeros((100, 200, 4), dtype=np.uint8)
+    canvas[0:30, 0:60, 3] = 255  # Paint in the top-left corner of the page
+    width, height = painted_extent(canvas)
+    assert np.isclose(width, 1.0) and np.isclose(height, 1.0)  # Reaches the far edge, so the whole axis
+    canvas[:] = 0
+    canvas[40:70, 120:180, 3] = 255  # Right of centre: columns 120-179 of 200, rows 40-69 of 100
+    width, height = painted_extent(canvas)
+    assert np.isclose(width, 2 * (180 / 200 - 0.5)) and np.isclose(height, 2 * (70 / 100 - 0.5))
