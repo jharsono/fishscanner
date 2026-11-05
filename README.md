@@ -59,6 +59,7 @@ There is no password: anyone on the same network who finds the address can use i
 ## Controls
 
 - **Left / Right arrows**: switch between ocean scenes
+- **F**: switch between fullscreen and a window
 - **ESC**: exit
 - The window can be resized
 
@@ -84,7 +85,7 @@ Developed and tested on macOS (Apple Silicon) and a Raspberry Pi 3B. Every depen
   uv run fishscanner
   ```
 
-  It runs slowly for now: about 7 frames per second in a maximised 1080p window, with the Python side, the GPU and handing frames to the desktop each taking 40 to 60 ms of every frame.
+  Press **F** for fullscreen: it runs nearly twice as fast there as in a maximised window. With 10 fish at 1080p that is about 10 frames per second fullscreen against 6 maximised.
 
 ## Troubleshooting
 

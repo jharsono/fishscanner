@@ -290,6 +290,26 @@ def create_window():
     return window
 
 
+def toggle_fullscreen(window):
+    """
+    Switch between filling the primary monitor and a WINDOW_SIZE window centred on the monitor.
+    The window's earlier position is not restored: Wayland cannot report it.
+    :param window: glfw window handle
+    """
+    monitor = glfw.get_window_monitor(window)
+    if not monitor:
+        monitor = glfw.get_primary_monitor()
+        mode = glfw.get_video_mode(monitor)
+        glfw.set_window_monitor(window, monitor, 0, 0, mode.size.width, mode.size.height, mode.refresh_rate)
+        return
+    mode = glfw.get_video_mode(monitor)
+    monitor_x, monitor_y = glfw.get_monitor_pos(monitor)
+    width, height = WINDOW_SIZE
+    x, y = monitor_x + (mode.size.width - width) // 2, monitor_y + (mode.size.height - height) // 2
+    # No monitor means windowed, as glfw documents; pyGLFW's stub does not allow None
+    glfw.set_window_monitor(window, None, x, y, width, height, 0)  # pyright: ignore[reportArgumentType]
+
+
 def main():
     window = create_window()
     renderer = Renderer(*glfw.get_framebuffer_size(window), max_aspect=BACKGROUND_SCALE[0] / BACKGROUND_SCALE[1])
@@ -327,6 +347,8 @@ def main():
             scene.switch_background(-1)
         elif key == glfw.KEY_RIGHT:
             scene.switch_background(1)
+        elif key == glfw.KEY_F:
+            toggle_fullscreen(window)
 
     glfw.set_key_callback(window, on_key)
     glfw.set_framebuffer_size_callback(window, lambda _window, width, height: renderer.resize(width, height))

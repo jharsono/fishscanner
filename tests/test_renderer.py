@@ -4,6 +4,7 @@ They run in whichever context `create_window` gets: OpenGL 3.3 core on a desktop
 on a Raspberry Pi 3B. Skipped where neither can be created (headless CI).
 """
 
+import ctypes
 import warnings
 from pathlib import Path
 from queue import Queue
@@ -52,6 +53,24 @@ def test_window_falls_back_past_a_context_the_machine_lacks(window, monkeypatch)
         assert fallback
     finally:
         glfw.destroy_window(fallback)
+        glfw.make_context_current(window)
+
+
+def test_toggle_fullscreen_fills_the_primary_monitor_then_returns_to_the_starting_window(window):
+    """On a Pi 3B fullscreen draws about twice as fast as a maximised window, so F switches to it."""
+    glfw = pytest.importorskip("glfw")
+    other = main_ocean.create_window()  # Its own window, so the shared one keeps its size for the pixel tests
+    try:
+        main_ocean.toggle_fullscreen(other)
+        fullscreen_on = glfw.get_window_monitor(other)
+        assert fullscreen_on and ctypes.addressof(fullscreen_on.contents) == ctypes.addressof(
+            glfw.get_primary_monitor().contents
+        )
+        main_ocean.toggle_fullscreen(other)
+        assert not glfw.get_window_monitor(other)
+        assert glfw.get_window_size(other) == main_ocean.WINDOW_SIZE
+    finally:
+        glfw.destroy_window(other)
         glfw.make_context_current(window)
 
 
