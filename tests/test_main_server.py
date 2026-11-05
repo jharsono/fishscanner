@@ -74,6 +74,7 @@ def test_the_server_scans_photos_present_and_added_serves_them_and_stops_on_ctrl
     assert out.splitlines() == [
         f"Loaded 1 fish from {photos.resolve()}; drop photos there to add more",
         f"Remote control: http://{lan_address()}:{port}",
+        f"Tank, for a TV's browser: http://{lan_address()}:{port}/tank/",
     ]
 
 

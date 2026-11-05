@@ -25,6 +25,7 @@ from ocean import IMAGES_DIR
 from ocean.roster import MAX_CAP, MIN_CAP, FishRoster
 
 PAGE = Path(__file__).with_name("index.html")
+TANK_DIR = Path(__file__).with_name("tank")  # The page that draws the tank, for a TV's browser
 
 
 class FishUpdate(BaseModel):
@@ -105,6 +106,7 @@ def create_app(roster: FishRoster, photos_dir: Path) -> FastAPI:
         return {"name": name}
 
     app.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
+    app.mount("/tank", StaticFiles(directory=TANK_DIR, html=True), name="tank")
     return app
 
 

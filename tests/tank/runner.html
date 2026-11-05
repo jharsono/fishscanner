@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tank tests</title>
+<link rel="icon" href="data:,"><!-- No icon, so Chrome does not request /favicon.ico and log the 404 -->
+<script type="module">
+  import { runRegistered } from "./check.js";
+
+  // tests/test_tank.py calls this once per page, with one test file
+  window.runTests = async (file) => {
+    await import(`./${file}`);
+    return runRegistered();
+  };
+</script>
