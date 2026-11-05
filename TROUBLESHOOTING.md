@@ -16,11 +16,14 @@ uv sync
 
 ## Running
 
-### "Could not create an OpenGL 3.3 window"
-Your graphics driver does not offer an OpenGL 3.3 core profile. Update your system or graphics drivers. On Linux, make sure you are running inside a desktop session, not over plain SSH.
+### The tank page says "This browser cannot draw the tank: it has no WebGL"
+The browser does not offer WebGL, or has it turned off. Try another browser on that device, or update its software.
 
-### Window opens but shows only the dark clear colour
-The images are found relative to the package, so the folder you run from does not matter. Run `uv run pytest tests/test_renderer.py -v` and report the output in an issue.
+### The tank page shows only a dark blue screen
+The page could not load the scene's images from the server. Check that the server is still running, then reload the page. The images are found relative to the package, so the folder you run the server from does not matter.
+
+### The tank stops changing when fish are added or disabled
+The page asks the server for changes every couple of seconds. If the server stops, the fish keep swimming as they were, and the page picks changes up again once the server is back.
 
 ## Fish not appearing
 
@@ -40,10 +43,10 @@ The images are found relative to the package, so the folder you run from does no
 1. Keep the drawing inside the marked area; anything crossing the line between two markers is cropped, and a square around each corner marker is blanked
 2. Use a solid outline and fill; the background removal keeps the largest connected shape
 
-## Phone remote
+## Phone remote and TV
 
-### The phone cannot open the remote control page
-1. The phone must be on the same Wi-Fi as the computer, and use the address from the `Remote control:` line exactly, port included.
+### The phone or TV cannot open the page
+1. The phone or TV must be on the same Wi-Fi as the computer, and use the address from the `Remote control:` or `Tank` line exactly, port included.
 2. On macOS the firewall (System Settings > Network > Firewall) blocks incoming connections to an app until you allow it. If you missed or declined the prompt, allow the Python that uv installed; `uv run python -c "import os, sys; print(os.path.realpath(sys.executable))"` prints its path. Either add it under Firewall > Options, or run:
    ```bash
    sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add <that path>
@@ -52,12 +55,12 @@ The images are found relative to the package, so the folder you run from does no
    The path changes when uv installs a new Python version, so this may need repeating then.
 3. Some guest and venue networks stop devices from reaching each other; use a phone hotspot or a home network instead.
 
-### `Remote control unavailable, cannot listen on port 8080`
-Another program is using the port. The aquarium still runs, without the remote. Quit the other program, or change `SERVER_PORT` in `main_ocean.py`.
+### `Cannot listen on port 8080`
+Another program is using the port, and the server stops. Quit the other program, or start the server on another port with `uv run fishscanner --port 8000` and use the addresses it prints.
 
 ## Performance
 
-If animation stutters, close other GPU-heavy applications, and keep the `photos` folder to the fish you want: every photo there is scanned at startup. The app caps the number of fish swimming at once (10 to start, changeable from the phone remote) and disables the oldest beyond it.
+If the tank stutters on a TV, set fewer fish from the phone remote: the TV draws every fish and the full-screen scene each frame. Keep the `photos` folder to the fish you want, too: every photo there is scanned at startup. The app caps the number of fish swimming at once (10 to start, changeable from the phone remote) and disables the oldest beyond it.
 
 ## Still having problems?
 

@@ -1,4 +1,4 @@
-"""Which scanned photos swim in the tank, shared by the animation loop and the remote control."""
+"""Which scanned photos swim in the tank, shared by the server's main thread and the web app."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ class FishRoster:
     Enabled fish are kept oldest first; enabling one makes it the newest, and whenever there are
     more enabled fish than the cap the oldest are disabled. The cap and the disabled photos are
     saved to a JSON file so they survive a restart; photos themselves are never moved or deleted.
-    The animation loop registers scans and follows enabled() while the remote control server
+    The server's main thread registers scans while the web app reads and changes the state
     changes the state from its own threads, so every method takes the lock.
     """
 

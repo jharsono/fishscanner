@@ -3,8 +3,8 @@ import { orthographic } from "./matrices.js";
 import { compileProgram, POSITION_ATTRIBUTE, TEXCOORD_ATTRIBUTE } from "./shaders.js";
 
 // Opaque, so blending cannot leave the canvas translucent where transparent sprites draw over the
-// background (the page would show through); no antialiasing, like the desktop window, which also
-// spares a TV's GPU
+// background (the page would show through); no antialiasing, like the desktop app (tag
+// desktop-final), which also spares a TV's GPU
 export const CONTEXT_ATTRIBUTES = { alpha: false, antialias: false };
 
 export class Renderer {
@@ -118,7 +118,7 @@ export function createTexture(gl, image) {
 /** Replace a texture's image, keeping the texture */
 export function fillTexture(gl, texture, image) {
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  // The image's own values, as the desktop app (OpenCV) reads them: the backgrounds carry an Adobe
+  // The image's own values, as the desktop app (tag desktop-final, through OpenCV) drew them: the backgrounds carry an Adobe
   // RGB profile, and converting them to sRGB would shift the water's colour
   gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);

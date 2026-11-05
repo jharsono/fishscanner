@@ -1,4 +1,4 @@
-// Rendering through real WebGL into an offscreen canvas. A port of the GL tests in tests/test_renderer.py.
+// Rendering through real WebGL into an offscreen canvas. Ported from the GL tests in tests/test_renderer.py (tag desktop-final).
 import { CONTEXT_ATTRIBUTES, createTexture, loadImage, Renderer } from "/tank/engine/renderer.js";
 import { compileProgram } from "/tank/engine/shaders.js";
 import { DrawingBubble } from "/tank/ocean/drawingbubble.js";
@@ -87,7 +87,7 @@ test("transparent texels are discarded", () => {
   assert(same(readPixel(WIDTH / 2, HEIGHT / 2).slice(0, 3), CLEAR));
 });
 
-test("a texture keeps an image's own values, ignoring its colour profile, as the desktop app does", async () => {
+test("a texture keeps an image's own values, ignoring its colour profile, as the desktop app did", async () => {
   // adobe_rgb.png: 2x2 pixels of (26, 173, 253), the backgrounds' open water, saved with the Adobe
   // RGB (1998) profile the background images carry. Converted to sRGB, its red would drop to about 0.
   const sprite = fullScreenSprite(createTexture(gl, await loadImage("/tests/tank/adobe_rgb.png")));
