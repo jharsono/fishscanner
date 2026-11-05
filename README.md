@@ -65,14 +65,26 @@ There is no password: anyone on the same network who finds the address can use i
 ## How it works
 
 - Photos are scanned with OpenCV: the four ArUco markers locate the page, the drawing is warped flat and its background removed.
-- The aquarium is drawn with OpenGL 3.3 in a glfw window. Fish swim, turn at the edges, blow bubbles, and drift into the distance and back.
+- The aquarium is drawn with OpenGL in a glfw window: a 3.3 core profile where the driver offers one, OpenGL ES 2.0 otherwise. Fish swim, turn at the edges, blow bubbles, and drift into the distance and back.
 - A background thread watches `photos/` and only scans a file once it has stopped growing, so a photo still being copied is never read half-written.
 
 ## Platform notes
 
-Developed and tested on macOS (Apple Silicon). Every dependency ships as a wheel for Windows and Linux too, and the app only needs an OpenGL 3.3 capable driver, so it should run there as well.
+Developed and tested on macOS (Apple Silicon) and a Raspberry Pi 3B. Every dependency ships as a wheel for Windows and Linux too, and the app only needs a driver offering OpenGL 3.3 or OpenGL ES 2.0, so it should run there as well.
 
 - **Linux**: OpenCV needs `libgl1` and `libglib2.0-0` (`sudo apt-get install libgl1 libglib2.0-0`).
+- **Raspberry Pi 3B**: use the 64-bit Raspberry Pi OS with desktop (tested with the Debian 13 "Trixie" image of 2026-10-06). The 32-bit OS has no prebuilt numpy, OpenCV or Pillow wheels, and building them on the Pi is impractical. The Pi's GPU offers OpenGL ES 2.0, which the app picks automatically, and it holds at most 2048 pixels a side, so the backgrounds are shrunk when they load. In a terminal on the Pi's desktop (not over SSH):
+
+  ```bash
+  sudo apt install -y git
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  source ~/.local/bin/env    # puts uv on the PATH of this terminal
+  git clone https://github.com/jharsono/fishscanner.git && cd fishscanner
+  uv sync
+  uv run fishscanner
+  ```
+
+  It runs slowly for now: about 7 frames per second in a maximised 1080p window, with the Python side, the GPU and handing frames to the desktop each taking 40 to 60 ms of every frame.
 
 ## Troubleshooting
 
@@ -87,7 +99,7 @@ uv run ruff format .       # format
 uv run pyright             # type check
 ```
 
-The same checks run in GitHub Actions on Ubuntu (Python 3.11 and 3.14); the OpenGL tests skip there and run locally on a Mac.
+The same checks run in GitHub Actions on Ubuntu (Python 3.11 and 3.14); the OpenGL tests skip there and run locally, under OpenGL 3.3 on a Mac and under OpenGL ES 2.0 on a Raspberry Pi 3B.
 
 ## Project Structure
 

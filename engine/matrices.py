@@ -37,6 +37,12 @@ def model_matrix(position: np.ndarray, rotate: np.ndarray, scale: np.ndarray) ->
     )
 
 
+def column_major(m: np.ndarray) -> np.ndarray:
+    """The matrix laid out column by column, as glUniformMatrix4fv reads it with transpose GL_FALSE,
+    the only value GLES 2.0 accepts."""
+    return np.ascontiguousarray(m.T)
+
+
 def orthographic(left: float, right: float, bottom: float, top: float, near: float, far: float) -> np.ndarray:
     m = np.identity(4, dtype=np.float32)
     m[0, 0] = 2 / (right - left)

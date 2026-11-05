@@ -9,6 +9,18 @@ from engine.matrices import orthographic
 from engine.shaders import compile_program
 
 
+def fit_texture_size(width: int, height: int, limit: int) -> tuple[int, int]:
+    """
+    Shrink an image size, keeping its aspect, until neither side exceeds the GPU's texture limit
+    :param width: Image width in pixels
+    :param height: Image height in pixels
+    :param limit: GL_MAX_TEXTURE_SIZE of the current context
+    :return: The size to upload, unchanged when the image already fits
+    """
+    scale = min(1.0, limit / max(width, height))
+    return max(1, round(width * scale)), max(1, round(height * scale))
+
+
 class Renderer:
     """
     Core of the Engine
@@ -101,10 +113,14 @@ class Renderer:
     @staticmethod
     def create_texture(image: np.ndarray) -> int:
         """
-        Create a texture from image represented by ndarray
+        Create a texture from image represented by ndarray, shrunk first if the GPU cannot hold it
         :param image: RGBA image to build texture
         :return: Texture ID
         """
+        height, width = image.shape[:2]
+        fitted = fit_texture_size(width, height, int(gl.glGetIntegerv(gl.GL_MAX_TEXTURE_SIZE)))
+        if fitted != (width, height):  # The Pi 3B takes at most 2048 pixels a side
+            image = cv2.resize(image, fitted, interpolation=cv2.INTER_AREA)
         texid = gl.glGenTextures(1)
         gl.glBindTexture(gl.GL_TEXTURE_2D, texid)
         gl.glTexImage2D(

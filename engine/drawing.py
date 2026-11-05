@@ -5,15 +5,17 @@ from dataclasses import dataclass
 import numpy as np
 import OpenGL.GL as gl
 
-from engine.matrices import model_matrix
-from engine.shaders import ShaderProgram
+from engine.matrices import column_major, model_matrix
+from engine.shaders import POSITION_ATTRIBUTE, TEXCOORD_ATTRIBUTE, ShaderProgram, is_gles
+
+FLOAT_BYTES = 4
+VERTEX_STRIDE = 5 * FLOAT_BYTES  # Interleaved position (x, y, z) and texture coordinate (s, t)
 
 
 @dataclass(frozen=True)
 class Mesh:
     """A unit quad subdivided into triangles, uploaded once and shared by every sprite of that grid size."""
 
-    vao: int
     vbo: int
     vertex_count: int
 
@@ -24,6 +26,9 @@ class Drawing:
     """
 
     _meshes: dict[tuple[int, int], Mesh] = {}
+    # A core profile draws nothing without a vertex array object bound and OpenGL ES 2.0 has none,
+    # so one stays bound on core profiles and every draw points the vertex inputs at its own mesh
+    _vertex_array: int | None = None
 
     def __init__(
         self,
@@ -75,8 +80,9 @@ class Drawing:
         """
         shader = self._shader or default_shader
         gl.glUseProgram(shader.id)
-        gl.glUniformMatrix4fv(shader.model, 1, gl.GL_TRUE, model_matrix(self.position, self.rotate, self.scale))
-        gl.glUniformMatrix4fv(shader.projection, 1, gl.GL_TRUE, projection)
+        model = model_matrix(self.position, self.rotate, self.scale)
+        gl.glUniformMatrix4fv(shader.model, 1, gl.GL_FALSE, column_major(model))
+        gl.glUniformMatrix4fv(shader.projection, 1, gl.GL_FALSE, column_major(projection))
         gl.glUniform3f(shader.color, *self.color)
         gl.glUniform1f(shader.timer, self._time_counter)
         gl.glUniform4f(shader.params, *self.shader_params)
@@ -86,9 +92,11 @@ class Drawing:
             self.step_animation_timer = -self.step_animation_timer
         mesh = self._mesh_for(*self._grid)  # Created on first render, so sprites need no GL context to exist
         gl.glBindTexture(gl.GL_TEXTURE_2D, self._texid)
-        gl.glBindVertexArray(mesh.vao)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, mesh.vbo)
+        gl.glVertexAttribPointer(POSITION_ATTRIBUTE, 3, gl.GL_FLOAT, gl.GL_FALSE, VERTEX_STRIDE, gl.ctypes.c_void_p(0))
+        texcoord_offset = gl.ctypes.c_void_p(3 * FLOAT_BYTES)
+        gl.glVertexAttribPointer(TEXCOORD_ATTRIBUTE, 2, gl.GL_FLOAT, gl.GL_FALSE, VERTEX_STRIDE, texcoord_offset)
         gl.glDrawArrays(gl.GL_TRIANGLES, 0, mesh.vertex_count)
-        gl.glBindVertexArray(0)
         gl.glUseProgram(0)
 
     def animation(self) -> None:
@@ -107,18 +115,31 @@ class Drawing:
 
     @classmethod
     def _mesh_for(cls, grid_x: int, grid_y: int) -> Mesh:
+        if not cls._meshes:
+            cls._enable_vertex_inputs()
         key = (grid_x, grid_y)
         if key not in cls._meshes:
             cls._meshes[key] = cls._mesh_create(grid_x, grid_y)
         return cls._meshes[key]
 
     @classmethod
+    def _enable_vertex_inputs(cls) -> None:
+        """Turn on the position and texture coordinate inputs, in the vertex array on core profiles."""
+        if not is_gles():
+            cls._vertex_array = gl.glGenVertexArrays(1)
+            gl.glBindVertexArray(cls._vertex_array)
+        gl.glEnableVertexAttribArray(POSITION_ATTRIBUTE)
+        gl.glEnableVertexAttribArray(TEXCOORD_ATTRIBUTE)
+
+    @classmethod
     def release_meshes(cls) -> None:
         """Delete every shared mesh from the GPU; call once before the context goes away."""
         for mesh in cls._meshes.values():
-            gl.glDeleteVertexArrays(1, [mesh.vao])
             gl.glDeleteBuffers(1, [mesh.vbo])
         cls._meshes.clear()
+        if cls._vertex_array is not None:
+            gl.glDeleteVertexArrays(1, [cls._vertex_array])
+            cls._vertex_array = None
 
     @staticmethod
     def _mesh_create(grid_size_x: int, grid_size_y: int) -> Mesh:
@@ -144,16 +165,8 @@ class Drawing:
                 ]:
                     vertices += [px, py, 0.0, px + 0.5, py + 0.5]
         data = np.array(vertices, dtype=np.float32)
-        stride = 5 * data.itemsize
 
-        vao = gl.glGenVertexArrays(1)
         vbo = gl.glGenBuffers(1)
-        gl.glBindVertexArray(vao)
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo)
         gl.glBufferData(gl.GL_ARRAY_BUFFER, data.nbytes, data, gl.GL_STATIC_DRAW)
-        gl.glEnableVertexAttribArray(0)
-        gl.glVertexAttribPointer(0, 3, gl.GL_FLOAT, gl.GL_FALSE, stride, gl.ctypes.c_void_p(0))
-        gl.glEnableVertexAttribArray(1)
-        gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, stride, gl.ctypes.c_void_p(3 * data.itemsize))
-        gl.glBindVertexArray(0)
-        return Mesh(vao=vao, vbo=vbo, vertex_count=len(data) // 5)
+        return Mesh(vbo=vbo, vertex_count=len(data) // 5)

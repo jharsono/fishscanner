@@ -16,8 +16,8 @@ uv sync
 
 ## Running
 
-### "Could not create an OpenGL 3.3 window"
-Your graphics driver does not offer an OpenGL 3.3 core profile. Update your system or graphics drivers. On Linux, make sure you are running inside a desktop session, not over plain SSH.
+### "Could not create an OpenGL window"
+Your graphics driver offers neither an OpenGL 3.3 core profile nor OpenGL ES 2.0; the message lists what glfw reported for each. Update your system or graphics drivers. On Linux, make sure you are running inside a desktop session, not over plain SSH.
 
 ### Window opens but shows only the dark clear colour
 The images are found relative to the package, so the folder you run from does not matter. Run `uv run pytest tests/test_renderer.py -v` and report the output in an issue.

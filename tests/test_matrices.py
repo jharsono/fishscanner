@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from engine.matrices import model_matrix, orthographic
+from engine.matrices import column_major, model_matrix, orthographic
 
 
 def apply(matrix: np.ndarray, point: tuple[float, float, float]) -> np.ndarray:
@@ -30,6 +30,14 @@ def test_rotation_of_180_about_y_mirrors_x():
     """A fish turning around is a 180 degree y rotation, which must flip x exactly."""
     m = model_matrix(np.zeros(3), np.array([0.0, 180.0, 0.0]), np.ones(3))
     assert np.allclose(apply(m, (0.5, 0.25, 0.0)), [-0.5, 0.25, 0.0], atol=1e-6)
+
+
+def test_column_major_lays_out_columns_first_for_gl():
+    """GLES 2.0 refuses to transpose uniforms, so matrices go up already in GL's column order."""
+    m = np.arange(16, dtype=np.float32).reshape(4, 4)
+    laid_out = column_major(m)
+    assert list(laid_out.tobytes()) == list(m.tobytes(order="F"))
+    assert laid_out.dtype == np.float32
 
 
 def test_orthographic_maps_corners_to_clip_space():

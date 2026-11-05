@@ -1,6 +1,7 @@
 """Smoke tests that render through the real OpenGL pipeline into a hidden window.
 
-Skipped where no OpenGL 3.3 window can be created (headless CI).
+They run in whichever context `create_window` gets: OpenGL 3.3 core on a desktop, OpenGL ES 2.0
+on a Raspberry Pi 3B. Skipped where neither can be created (headless CI).
 """
 
 import warnings
@@ -13,7 +14,7 @@ import pytest
 
 import main_ocean
 from engine.drawing import Drawing
-from engine.renderer import Renderer
+from engine.renderer import Renderer, fit_texture_size
 from engine.shaders import compile_program
 from ocean.drawingfish import FISH_TRANSFORM
 from ocean.drawingseaweed import SEAWEED_TRANSFORM
@@ -24,7 +25,7 @@ WIDTH, HEIGHT = main_ocean.WINDOW_SIZE
 
 @pytest.fixture(scope="module")
 def window():
-    """The app's own window, hidden; skipped where no OpenGL 3.3 context can be created."""
+    """The app's own window, hidden; skipped where no supported OpenGL context can be created."""
     glfw = pytest.importorskip("glfw")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # Headless Linux: glfw warns about the missing display before init() fails
@@ -34,11 +35,24 @@ def window():
     glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
     try:
         handle = main_ocean.create_window()
-    except RuntimeError as e:  # No OpenGL 3.3 context on this machine (headless CI)
+    except RuntimeError as e:  # No supported OpenGL context on this machine (headless CI)
         pytest.skip(str(e))
     yield handle
     Drawing.release_meshes()
     glfw.terminate()
+
+
+def test_window_falls_back_past_a_context_the_machine_lacks(window, monkeypatch):
+    """What happens on a Pi 3B, which has no OpenGL 3.3: the failed attempt must not stop the next."""
+    glfw = pytest.importorskip("glfw")
+    impossible = ("OpenGL 9.9", {glfw.CLIENT_API: glfw.OPENGL_API, glfw.CONTEXT_VERSION_MAJOR: 9})
+    monkeypatch.setattr(main_ocean, "CONTEXTS", [impossible, *main_ocean.CONTEXTS])
+    fallback = main_ocean.create_window()
+    try:
+        assert fallback
+    finally:
+        glfw.destroy_window(fallback)
+        glfw.make_context_current(window)
 
 
 @pytest.fixture
@@ -73,6 +87,27 @@ def test_sprite_covers_the_view(renderer):
     renderer.render([full_screen_sprite(solid_texture((255, 0, 0, 255)))])
     assert read_pixel(WIDTH // 2, HEIGHT // 2) == (255, 0, 0, 255)
     assert read_pixel(1, 1) == (255, 0, 0, 255)
+
+
+@pytest.mark.parametrize(
+    ("size", "limit", "fitted"),
+    [
+        ((800, 600), 2048, (800, 600)),  # Within the limit: unchanged
+        ((3840, 2160), 2048, (2048, 1152)),  # A background on the Pi 3B: aspect kept
+        ((261, 1432), 1024, (187, 1024)),  # Too tall: the height sets the scale
+        ((2049, 1), 2048, (2048, 1)),  # Never shrinks a side to nothing
+    ],
+)
+def test_fit_texture_size(size, limit, fitted):
+    width, height = size
+    assert fit_texture_size(width, height, limit) == fitted
+
+
+def test_texture_larger_than_the_gpu_limit_is_shrunk_to_fit(renderer):
+    limit = int(gl.glGetIntegerv(gl.GL_MAX_TEXTURE_SIZE))  # 2048 on a Pi 3B, whose backgrounds are 3840 wide
+    image = np.full((2, limit + 1, 4), (255, 0, 0, 255), dtype=np.uint8)
+    renderer.render([full_screen_sprite(Renderer.create_texture(image))])
+    assert read_pixel(WIDTH // 2, HEIGHT // 2) == (255, 0, 0, 255)
 
 
 def test_sprite_color_tints_texture(renderer):

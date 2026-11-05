@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 from queue import Queue
 
@@ -25,6 +26,28 @@ WINDOW_SIZE = (800, 600)
 BACKGROUND_SCALE = (3.6, 2.0, 1.0)  # Background sprites cover this much of the world, centred on the origin
 TICK_SECONDS = 1 / 60  # Animation step, 60 times per second
 FISH_LIMIT = 10  # Default cap on fish in the tank; the remote control can change it
+# OpenGL contexts to try, best first. glfw keeps window hints between windows, so each attempt
+# sets every context hint it depends on (the profile hints are ignored for OpenGL ES).
+CONTEXTS = [
+    (
+        "OpenGL 3.3 core",
+        {
+            glfw.CLIENT_API: glfw.OPENGL_API,
+            glfw.CONTEXT_VERSION_MAJOR: 3,
+            glfw.CONTEXT_VERSION_MINOR: 3,
+            glfw.OPENGL_PROFILE: glfw.OPENGL_CORE_PROFILE,
+            glfw.OPENGL_FORWARD_COMPAT: glfw.TRUE,  # Required by macOS for core profiles
+        },
+    ),
+    (
+        "OpenGL ES 2.0",  # All the Raspberry Pi 3B's GPU offers besides desktop OpenGL 2.1
+        {
+            glfw.CLIENT_API: glfw.OPENGL_ES_API,
+            glfw.CONTEXT_VERSION_MAJOR: 2,
+            glfw.CONTEXT_VERSION_MINOR: 0,
+        },
+    ),
+]
 
 
 class Resources:
@@ -242,19 +265,26 @@ def step(renderer: Renderer, scene: Scene, scanned_fish_queue: Queue, roster: Fi
 
 def create_window():
     """
-    Open the application window with an OpenGL 3.3 core profile context
+    Open the application window with the first context in CONTEXTS that the machine offers
     :return: glfw window handle
     """
     if not glfw.init():
         raise RuntimeError("Could not initialise glfw")
-    glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
-    glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
-    glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-    glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE)  # Required by macOS for core profiles
-    window = glfw.create_window(*WINDOW_SIZE, "FishScanner", None, None)
+    window = None
+    failures = []
+    for name, hints in CONTEXTS:
+        for hint, value in hints.items():
+            glfw.window_hint(hint, value)
+        # glfw reports a context the machine lacks as a warning, not an error: keep it for the message
+        with warnings.catch_warnings(record=True) as reasons:
+            warnings.simplefilter("always", glfw.GLFWError)
+            window = glfw.create_window(*WINDOW_SIZE, "FishScanner", None, None)
+        if window:
+            break
+        failures.append(f"{name}: {'; '.join(str(reason.message) for reason in reasons) or 'no reason given'}")
     if not window:
         glfw.terminate()
-        raise RuntimeError("Could not create an OpenGL 3.3 window")
+        raise RuntimeError("Could not create an OpenGL window. " + " | ".join(failures))
     glfw.make_context_current(window)
     glfw.swap_interval(1)  # Vertical sync
     return window
