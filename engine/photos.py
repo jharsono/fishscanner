@@ -86,7 +86,7 @@ class PhotoWatcher:
     that finishes later is still picked up. After the last attempt the file is given up
     on for the rest of the session, and a file that has been scanned is not scanned
     again if it is overwritten in place. Scanning happens on a background thread; the
-    queue hands (path, RGBA image) pairs to the OpenGL thread.
+    queue hands (path, RGBA image) pairs to the main thread.
     """
 
     def __init__(

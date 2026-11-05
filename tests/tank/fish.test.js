@@ -1,7 +1,8 @@
 // Sprite animation logic, run without a WebGL context (meshes are created lazily on first render).
-// A port of tests/test_fish.py. Those start from numpy's seed 0, whose first fish enters from the
-// left and so faces right, and several of them rely on that (a turn at a wall ends at rotate 180,
-// a level entry has no pitch); each fishTest here starts from a seed whose fish does the same.
+// Ported from tests/test_fish.py (tag desktop-final). Those tests start from numpy's seed 0, whose
+// first fish enters from the left and so faces right, and several of them rely on that (a turn at
+// a wall ends at rotate 180, a level entry has no pitch); each fishTest here starts from a seed
+// whose fish does the same.
 import { Renderer } from "/tank/engine/renderer.js";
 import { randint, seed } from "/tank/engine/random.js";
 import { DrawingBubble } from "/tank/ocean/drawingbubble.js";
@@ -111,7 +112,7 @@ function swimmingFishAt(x, y) {
   fish.vector = [0.0, 0.0, 0.0]; // Hold still so the test is about depth, not motion
   fish._cruiseSpeed = 0.0;
   // Level too: a vertical entry can leave a trace of pitch, which widens the fish's box (the
-  // Python tests' fish happen to enter level)
+  // Python tests' fish happened to enter level)
   fish.rotate[2] = 0.0;
   return fish;
 }
@@ -212,7 +213,7 @@ fishTest("a far fish moves slower, dims and sits behind", () => {
   const fish = new DrawingFish(null);
   startSwimming(fish);
   fish._depthPeriod = 600;
-  // Effort changes the pace too, so hold it: the Python test passes only because numpy's seed 0
+  // Effort changes the pace too, so hold it: the Python test passed only because numpy's seed 0
   // happens not to change gear before tick 300
   holdEffort(fish, 1.0);
   let before = [...fish.position];

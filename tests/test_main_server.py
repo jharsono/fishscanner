@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from importlib.metadata import entry_points
 from pathlib import Path
 
 import cv2
@@ -86,3 +87,8 @@ def test_the_server_exits_with_a_message_when_its_port_is_taken(tmp_path: Path):
     assert server.returncode == 1
     assert err.startswith(f"Cannot listen on port {port}: ") and err.count("\n") == 1  # One line, no traceback
     assert out == f"Loaded 0 fish from {(tmp_path / 'photos').resolve()}; drop photos there to add more\n"
+
+
+def test_the_fishscanner_command_runs_the_server():
+    (command,) = entry_points(group="console_scripts", name="fishscanner")
+    assert command.value == "main_server:main"

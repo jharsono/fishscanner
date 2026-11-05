@@ -1,7 +1,7 @@
 """
 Remote control for the tank: a small web app that a phone on the same network opens to upload
-photos, enable and disable fish, and set how many may swim at once. It also serves each fish's
-image and the scene images, for a browser that draws the tank.
+photos, enable and disable fish, and set how many may swim at once. It also serves the tank page,
+each fish's image and the scene images, for a browser that draws the tank.
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ def create_app(roster: FishRoster, photos_dir: Path) -> FastAPI:
 
 class RemoteServer:
     """
-    Serve the web app on a background thread; the main thread belongs to the window.
+    Serve the web app on a background thread; the main thread registers scans.
     """
 
     def __init__(self, app: FastAPI, port: int, host: str = "0.0.0.0"):

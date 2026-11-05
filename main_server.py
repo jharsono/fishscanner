@@ -1,6 +1,6 @@
 """
-The tank's server on its own, with no window: scan the photos, keep the roster, and serve the
-phone remote and the fish to a browser that draws the tank.
+The FishScanner server: scan the photos, keep the roster, and serve the phone remote and the tank
+page that a browser, such as a TV's, draws.
 """
 
 import argparse
@@ -63,7 +63,7 @@ def main():
     print(f"Tank, for a TV's browser: http://{lan_address()}:{port}/tank/")
 
     try:
-        while True:  # The main thread registers scans, as the window's animation loop does
+        while True:  # The main thread registers every scan the startup load and the watcher queue
             path, scanned_fish = scanned_fish_queue.get()
             roster.register(path.name, scanned_fish)
     except KeyboardInterrupt:  # Ctrl-C is how the server is stopped

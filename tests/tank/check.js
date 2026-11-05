@@ -26,7 +26,7 @@ export function assert(condition, message = "assertion failed") {
   }
 }
 
-// numpy.isclose's rule and defaults, so tolerances ported from the Python tests mean the same thing
+// numpy.isclose's rule and defaults, so tolerances ported from the Python tests (tag desktop-final) mean the same thing
 export function isClose(actual, expected, { rtol = 1e-5, atol = 1e-8 } = {}) {
   return Math.abs(actual - expected) <= atol + rtol * Math.abs(expected);
 }

@@ -11,8 +11,8 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.14"]
-    # Ubuntu only: GitHub's macOS runners sat in the queue until cancelled; the GL tests
-    # run locally on the Mac instead, and the scanner and logic tests run here.
+    # Ubuntu only: GitHub's macOS runners sat in the queue until cancelled. The runner's Google
+    # Chrome runs the tank page's tests.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

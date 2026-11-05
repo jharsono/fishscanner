@@ -1,5 +1,5 @@
-// The scene: its backgrounds and the fish it keeps in line with the enabled list. A port of the
-// scene tests in tests/test_renderer.py; decoration images come from the real app's /images/.
+// The scene: its backgrounds and the fish it keeps in line with the enabled list. Ported from the
+// scene tests in tests/test_renderer.py (tag desktop-final); decoration images come from the real app's /images/.
 import { CONTEXT_ATTRIBUTES, Renderer } from "/tank/engine/renderer.js";
 import { DrawingFish } from "/tank/ocean/drawingfish.js";
 import { Scene } from "/tank/ocean/scene.js";
