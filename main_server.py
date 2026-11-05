@@ -60,6 +60,7 @@ def main():
         watcher.stop()
         sys.exit(f"Cannot listen on port {port}: {e}")
     print(f"Remote control: http://{lan_address()}:{port}")
+    print(f"Tank, for a TV's browser: http://{lan_address()}:{port}/tank/")
 
     try:
         while True:  # The main thread registers scans, as the window's animation loop does

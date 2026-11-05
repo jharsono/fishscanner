@@ -16,7 +16,7 @@ from engine.photos import PhotoWatcher
 from engine.simplescanner import SimpleScanner
 from ocean import IMAGES_DIR
 from ocean.roster import MAX_CAP, MIN_CAP, FishRoster
-from remote.server import RemoteServer, create_app, lan_address
+from remote.server import TANK_DIR, RemoteServer, create_app, lan_address
 from tests.scanner_fixtures import EXAMPLES, PHOTOS
 
 EXAMPLE = PHOTOS / EXAMPLES[0]
@@ -122,6 +122,22 @@ def test_the_scene_images_are_served(client, name: str):
     response = client.get(f"/images/{name}")
     assert response.status_code == 200
     assert response.content == (IMAGES_DIR / name).read_bytes()
+
+
+def test_the_tank_page_is_served_at_tank(client):
+    redirect = client.get("/tank", follow_redirects=False)
+    assert redirect.status_code == 307 and redirect.headers["location"].endswith("/tank/")
+    response = client.get("/tank/")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "<title>FishScanner tank</title>" in response.text
+
+
+def test_the_tank_modules_are_served_as_javascript(client):
+    response = client.get("/tank/engine/clock.js")
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]  # Browsers refuse a module of any other type
+    assert response.content == (TANK_DIR / "engine" / "clock.js").read_bytes()
 
 
 def test_an_uploaded_photo_is_saved_whole_under_a_new_name(client, photos):

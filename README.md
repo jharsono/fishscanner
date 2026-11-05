@@ -56,6 +56,18 @@ When the app starts it prints a line like `Remote control: http://192.168.1.23:8
 
 There is no password: anyone on the same network who finds the address can use it, so use it on a network you trust. On macOS, allow incoming connections when asked the first time (see [Troubleshooting](TROUBLESHOOTING.md#the-phone-cannot-open-the-remote-control-page) if the phone cannot connect).
 
+## Tank on a TV
+
+The tank can also be drawn by a web browser, so a smart TV or streaming stick can show it while another machine, such as a Raspberry Pi, does the scanning. That machine needs no screen:
+
+```bash
+uv run fishscanner-server  # add --port 8000 if 8080 is taken
+```
+
+It prints the phone remote's address and the tank's, like `http://192.168.1.23:8080/tank/`. Open the tank's address in the TV's browser. Press select on the remote (a click) or **F** to go fullscreen, and **Left / Right** to switch scenes. Photos go into the server's `photos/` folder, or come from the phone remote, as above. Stop the server with Ctrl-C.
+
+The browser needs WebGL. The page is written for browsers as old as a 2022 Samsung TV's (Chromium 85).
+
 ## Controls
 
 - **Left / Right arrows**: switch between ocean scenes
@@ -81,13 +93,13 @@ See the [Troubleshooting Guide](TROUBLESHOOTING.md).
 ## Development
 
 ```bash
-uv run pytest              # tests, including OpenGL smoke tests in a hidden window
+uv run pytest              # tests, including OpenGL smoke tests in a hidden window and the tank page in headless Chrome
 uv run ruff check .        # lint
 uv run ruff format .       # format
 uv run pyright             # type check
 ```
 
-The same checks run in GitHub Actions on Ubuntu (Python 3.11 and 3.14); the OpenGL tests skip there and run locally on a Mac.
+The same checks run in GitHub Actions on Ubuntu (Python 3.11 and 3.14); the OpenGL tests skip there and run locally on a Mac. The tank page's JavaScript tests (`tests/tank/`) run in the installed Google Chrome through Playwright, and skip where Chrome is not installed.
 
 ## Project Structure
 
@@ -96,3 +108,5 @@ The same checks run in GitHub Actions on Ubuntu (Python 3.11 and 3.14); the Open
 - `engine/`: Scanner, photo ingestion, renderer, shaders
 - `ocean/`: The aquarium scene: fish, bubbles, seaweed and image assets
 - `main_ocean.py`: The application: window, scenes, main loop
+- `main_server.py`: The server alone, with no window: scanning, the fish roster and the web app
+- `remote/`: The web app: the phone remote page and its API, and in `remote/tank/` the tank page (plain JavaScript and WebGL, no build step)
