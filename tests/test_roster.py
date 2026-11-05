@@ -8,14 +8,16 @@ import cv2
 import numpy as np
 import pytest
 
-from ocean.roster import MAX_CAP, MIN_CAP, FishRoster
+from engine.simplescanner import SimpleScanner
+from ocean.roster import MAX_CAP, MIN_CAP, FishRoster, painted_extent
+from tests.scanner_fixtures import EXAMPLES, PHOTOS, scan_photo
 
 
 def blank_scan() -> np.ndarray:
     return np.zeros((600, 800, 4), dtype=np.uint8)
 
 
-def decode_png(data: bytes) -> np.ndarray:
+def decode_image(data: bytes) -> np.ndarray:
     image = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
     assert image is not None, "not a decodable image"
     return image
@@ -116,9 +118,9 @@ def test_the_snapshot_lists_the_newest_fish_first(tmp_path: Path):
     assert roster.snapshot() == {
         "cap": 2,
         "fish": [
-            {"name": "c.jpg", "enabled": True},
-            {"name": "b.jpg", "enabled": True},
-            {"name": "a.jpg", "enabled": False},
+            {"name": "c.jpg", "enabled": True, "extent": [1.0, 1.0]},
+            {"name": "b.jpg", "enabled": True, "extent": [1.0, 1.0]},
+            {"name": "a.jpg", "enabled": False, "extent": [1.0, 1.0]},
         ],
     }
 
@@ -130,7 +132,7 @@ def test_the_thumbnail_is_a_png_of_the_painted_area(tmp_path: Path):
     roster.register("a.jpg", scan)
     data = roster.thumbnail("a.jpg")
     assert data.startswith(b"\x89PNG")
-    image = decode_png(data)
+    image = decode_image(data)
     assert image.shape[2] == 4
     assert image.shape[1] == 2 * image.shape[0]  # Cropped to the paint, not the whole page
     assert tuple(int(v) for v in image[image.shape[0] // 2, image.shape[1] // 2]) == (0, 0, 255, 255)  # BGRA red
@@ -139,5 +141,45 @@ def test_the_thumbnail_is_a_png_of_the_painted_area(tmp_path: Path):
 def test_the_thumbnail_of_an_empty_scan_is_the_whole_page(tmp_path: Path):
     roster = FishRoster(tmp_path / "tank.json", default_cap=10)
     roster.register("a.jpg", blank_scan())
-    image = decode_png(roster.thumbnail("a.jpg"))
+    image = decode_image(roster.thumbnail("a.jpg"))
     assert image.shape[1] * 3 == image.shape[0] * 4
+
+
+def test_the_image_is_a_webp_of_the_whole_scan(tmp_path: Path):
+    scan = blank_scan()
+    scan[100:200, 300:500] = (255, 0, 0, 255)
+    roster = FishRoster(tmp_path / "tank.json", default_cap=10)
+    roster.register("a.jpg", scan)
+    data = roster.image("a.jpg")
+    assert data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+    image = decode_image(data)
+    assert image.shape == (600, 800, 4)  # The whole page, not cropped: the sprite is drawn from all of it
+    blue, green, red, alpha = (int(v) for v in image[150, 400])
+    assert alpha == 255 and red > 240 and green < 15 and blue < 15  # Lossy, but still red in BGRA order
+
+
+def test_the_image_keeps_a_real_scan_mask_exactly(tmp_path: Path):
+    """The colour is compressed lossily; the mask must not be, or the drawn outline would change."""
+    scan = scan_photo(SimpleScanner(), PHOTOS / EXAMPLES[0])
+    roster = FishRoster(tmp_path / "tank.json", default_cap=10)
+    roster.register("a.jpg", scan)
+    assert np.array_equal(decode_image(roster.image("a.jpg"))[..., 3], scan[..., 3])
+
+
+def test_painted_extent_is_the_opaque_bounding_box_fraction():
+    canvas = np.zeros((100, 200, 4), dtype=np.uint8)
+    canvas[30:70, 50:150, 3] = 255  # Centred: 40 rows of 100, 100 columns of 200
+    assert painted_extent(canvas) == (0.5, 0.4)
+    assert painted_extent(np.zeros((10, 10, 4), dtype=np.uint8)) == (1.0, 1.0)
+
+
+def test_painted_extent_contains_off_centre_paint_when_centred_on_the_sprite():
+    """The scanner keeps the drawing wherever it sits on the page, so the box must reach it from the centre."""
+    canvas = np.zeros((100, 200, 4), dtype=np.uint8)
+    canvas[0:30, 0:60, 3] = 255  # Paint in the top-left corner of the page
+    width, height = painted_extent(canvas)
+    assert np.isclose(width, 1.0) and np.isclose(height, 1.0)  # Reaches the far edge, so the whole axis
+    canvas[:] = 0
+    canvas[40:70, 120:180, 3] = 255  # Right of centre: columns 120-179 of 200, rows 40-69 of 100
+    width, height = painted_extent(canvas)
+    assert np.isclose(width, 2 * (180 / 200 - 0.5)) and np.isclose(height, 2 * (70 / 100 - 0.5))

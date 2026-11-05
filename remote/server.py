@@ -1,6 +1,7 @@
 """
 Remote control for the tank: a small web app that a phone on the same network opens to upload
-photos, enable and disable fish, and set how many may swim at once.
+photos, enable and disable fish, and set how many may swim at once. It also serves each fish's
+image and the scene images, for a browser that draws the tank.
 """
 
 from __future__ import annotations
@@ -15,10 +16,12 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from engine.photos import PHOTO_SUFFIXES, scan_photo_file
 from engine.simplescanner import SimpleScanner
+from ocean import IMAGES_DIR
 from ocean.roster import MAX_CAP, MIN_CAP, FishRoster
 
 PAGE = Path(__file__).with_name("index.html")
@@ -61,6 +64,12 @@ def create_app(roster: FishRoster, photos_dir: Path) -> FastAPI:
         # A photo is registered once, so its thumbnail never changes
         return Response(roster.thumbnail(name), media_type="image/png", headers={"Cache-Control": "max-age=86400"})
 
+    @app.get("/api/fish/{name}/image")
+    def image(name: str) -> Response:
+        require(name)
+        # A photo is registered once, so its image never changes either
+        return Response(roster.image(name), media_type="image/webp", headers={"Cache-Control": "max-age=86400"})
+
     @app.put("/api/fish/{name}")
     def update_fish(name: str, update: FishUpdate) -> dict:
         require(name)
@@ -95,6 +104,7 @@ def create_app(roster: FishRoster, photos_dir: Path) -> FastAPI:
             staging.unlink(missing_ok=True)
         return {"name": name}
 
+    app.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
     return app
 
 

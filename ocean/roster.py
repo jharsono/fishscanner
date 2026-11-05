@@ -12,6 +12,37 @@ import numpy as np
 MIN_CAP = 1
 MAX_CAP = 30
 THUMBNAIL_WIDTH = 240  # Pixels; enough for a phone's fish list
+# Colour quality of the image the tank draws a fish from: about 35 KB instead of 500 KB as a PNG.
+# libwebp compresses the alpha channel losslessly, so the fish's outline is unchanged.
+IMAGE_QUALITY = 85
+
+
+def painted_extent(scanned_fish: np.ndarray) -> tuple[float, float]:
+    """
+    Smallest box centred on the canvas that contains a scan's opaque pixels, as fractions of
+    the canvas per axis. The scanner keeps the drawing wherever it sits on the page, so the
+    box reaches out to the farthest painted pixel on each axis rather than hugging the paint.
+    :param scanned_fish: RGBA scan
+    :return: (width fraction, height fraction), 1.0 when nothing is opaque
+    """
+    rows, cols = np.nonzero(scanned_fish[..., 3])
+    if rows.size == 0:
+        return (1.0, 1.0)
+    height, width = scanned_fish.shape[:2]
+    reach_x = max(0.5 - cols.min() / width, (cols.max() + 1) / width - 0.5)
+    reach_y = max(0.5 - rows.min() / height, (rows.max() + 1) / height - 0.5)
+    return (min(2 * reach_x, 1.0), min(2 * reach_y, 1.0))
+
+
+def webp_image(scan: np.ndarray) -> bytes:
+    """
+    The whole scan as a WebP, for the tank to draw the fish from
+    :param scan: RGBA scan
+    :return: WebP bytes with the scan's transparency
+    """
+    ok, data = cv2.imencode(".webp", cv2.cvtColor(scan, cv2.COLOR_RGBA2BGRA), [cv2.IMWRITE_WEBP_QUALITY, IMAGE_QUALITY])
+    assert ok, "WebP encoding of a valid RGBA image cannot fail"
+    return data.tobytes()
 
 
 def thumbnail_png(scan: np.ndarray) -> bytes:
@@ -50,6 +81,8 @@ class FishRoster:
         self._lock = threading.Lock()
         self._names: list[str] = []  # Every registered photo, in registration order
         self._thumbnails: dict[str, bytes] = {}
+        self._images: dict[str, bytes] = {}
+        self._extents: dict[str, tuple[float, float]] = {}
         self._enabled: list[str] = []  # Oldest first
         self._cap, self._disabled = self._load(default_cap)
 
@@ -86,12 +119,16 @@ class FishRoster:
         Add a photo that scanned into a fish; it is enabled unless it was saved as disabled.
         Each photo is registered once.
         :param name: Photo file name
-        :param scan: RGBA scan, for the thumbnail
+        :param scan: RGBA scan, for the thumbnail, the image and the painted extent
         """
         thumbnail = thumbnail_png(scan)
+        image = webp_image(scan)
+        extent = painted_extent(scan)
         with self._lock:
             self._names.append(name)
             self._thumbnails[name] = thumbnail
+            self._images[name] = image
+            self._extents[name] = extent
             if name not in self._disabled:
                 self._enabled.append(name)
                 if len(self._enabled) > self._cap:
@@ -142,12 +179,20 @@ class FishRoster:
         with self._lock:
             return self._thumbnails[name]
 
+    def image(self, name: str) -> bytes:
+        with self._lock:
+            return self._images[name]
+
     def snapshot(self) -> dict:
         """
-        :return: The cap and every registered fish, newest first, with whether it is enabled
+        :return: The cap and every registered fish, newest first, with whether it is enabled and its
+        painted extent
         """
         with self._lock:
             return {
                 "cap": self._cap,
-                "fish": [{"name": name, "enabled": name in self._enabled} for name in reversed(self._names)],
+                "fish": [
+                    {"name": name, "enabled": name in self._enabled, "extent": list(self._extents[name])}
+                    for name in reversed(self._names)
+                ],
             }
