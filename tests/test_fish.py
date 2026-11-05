@@ -390,6 +390,25 @@ def test_many_fish_keep_cycling_and_never_pass_through_each_other():
     assert min(advanced) > 600 and np.mean(advanced) > 1200, f"fish spent too long held: {advanced}"
 
 
+def test_depth_crossing_check_sizes_each_fish_once_per_step_not_once_per_pair(monkeypatch):
+    """Ten fish make 45 pairs; sizing both fish of every pair, now and a step ahead, made this
+    check most of each animation tick on a Raspberry Pi 3B."""
+    from ocean.drawingfish import prevent_depth_crossings
+
+    fishes = [swimming_fish_at(x, 0.0) for x in np.linspace(-1.5, 1.5, 10)]
+    footprint = DrawingFish._footprint
+    calls = 0
+
+    def counted_footprint(self):
+        nonlocal calls
+        calls += 1
+        return footprint(self)
+
+    monkeypatch.setattr(DrawingFish, "_footprint", counted_footprint)
+    prevent_depth_crossings(fishes)
+    assert calls <= 2 * len(fishes)  # Now and after the next step, once per fish
+
+
 def test_overlap_lookahead_sees_fish_about_to_meet_or_grow_into_each_other():
     a = swimming_fish_at(0.0, 0.0)
     b = swimming_fish_at(1.2, 0.0)  # Just clear: half widths sum to 1.0 with full-canvas extents

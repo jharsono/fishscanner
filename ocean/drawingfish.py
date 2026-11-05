@@ -102,6 +102,14 @@ def distance_cycle(tick: int, period: int) -> float:
     return 0.5 * (1 - math.cos(2 * math.pi * tick / period))
 
 
+ScreenBox = tuple[float, float, float, float]  # Centre x, centre y, painted width, painted height
+
+
+def boxes_overlap(a: ScreenBox, b: ScreenBox) -> bool:
+    """Whether two painted rectangles overlap in both x and y"""
+    return abs(a[0] - b[0]) < (a[2] + b[2]) / 2 and abs(a[1] - b[1]) < (a[3] + b[3]) / 2
+
+
 def prevent_depth_crossings(fishes: list[DrawingFish]) -> None:
     """
     Hold the depth cycle of any fish whose next step would cross the depth of a fish it
@@ -112,9 +120,13 @@ def prevent_depth_crossings(fishes: list[DrawingFish]) -> None:
     """
     for fish in fishes:
         fish.hold_depth = False
+    # Holding depth changes neither box, so each fish is sized once here rather than once per pair
+    boxes_now = [fish.screen_box() for fish in fishes]
+    boxes_next = [fish.screen_box(after_step=True) for fish in fishes]
     for i, fish in enumerate(fishes):
-        for other in fishes[i + 1 :]:
-            if not (fish.overlaps(other) or fish.overlaps(other, after_step=True)):
+        for j in range(i + 1, len(fishes)):
+            other = fishes[j]
+            if not (boxes_overlap(boxes_now[i], boxes_now[j]) or boxes_overlap(boxes_next[i], boxes_next[j])):
                 continue  # Not overlapping now and not about to: both may move freely
             # Either fish may move this tick; hold as few as keep them from meeting or passing.
             # A move only counts as safe if it stays on its side of the other fish's CURRENT depth
@@ -311,35 +323,44 @@ class DrawingFish(Drawing):
         :param after_step: Judge where both fish will be after their next movement step
         :return: True when the two painted areas overlap in x and y
         """
-        mine, theirs = self.position[:2], other.position[:2]
-        my_size, their_size = self._footprint(), other._footprint()
+        return boxes_overlap(self.screen_box(after_step), other.screen_box(after_step))
+
+    def screen_box(self, after_step: bool = False) -> ScreenBox:
+        """
+        The rectangle this fish's paint covers on screen, in plain floats (numpy is slow for two numbers)
+        :param after_step: Where it will be after its next movement step, at the larger of its two sizes
+        :return: Centre x, centre y, width, height
+        """
+        x, y = float(self.position[0]), float(self.position[1])
+        width, height = self._footprint()
         if after_step:
-            mine = mine + self.vector[:2] * self._speed_factor * self._next_effort()
-            theirs = theirs + other.vector[:2] * other._speed_factor * other._next_effort()
+            effort = self._next_effort()
+            x += float(self.vector[0]) * self._speed_factor * effort
+            y += float(self.vector[1]) * self._speed_factor * effort
             # A fish coming nearer grows a little each tick: judge with the larger size
-            my_size = np.maximum(my_size, self._next_size())
-            their_size = np.maximum(their_size, other._next_size())
-        half = (my_size * self.extent + their_size * other.extent) / 2
-        return bool(np.all(np.abs(mine - theirs) < half))
+            next_width, next_height = self._next_size()
+            width, height = max(width, next_width), max(height, next_height)
+        return x, y, width * float(self.extent[0]), height * float(self.extent[1])
 
     def _next_effort(self) -> float:
         """Effort after the easing step that precedes the next move"""
         return self.effort + (self._effort_target - self.effort) * EFFORT_EASING
 
-    def _footprint(self) -> np.ndarray:
+    def _footprint(self) -> tuple[float, float]:
         """Width and height of the box around the drawn, pitched sprite"""
-        w, h = np.abs(self.scale[:2])
+        w, h = abs(float(self.scale[0])), abs(float(self.scale[1]))
         c, s = abs(math.cos(math.radians(self.rotate[2]))), abs(math.sin(math.radians(self.rotate[2])))
-        return np.array([w * c + h * s, h * c + w * s])
+        return w * c + h * s, h * c + w * s
 
-    def _next_size(self) -> np.ndarray:
+    def _next_size(self) -> tuple[float, float]:
         """Drawn width and height after the next depth step"""
         distance = (
             distance_cycle(self._depth_tick + 1, self._depth_period)
             if self._animation_stage == "swim"
             else self._distance
         )
-        return np.abs(self._base_scale[:2]) * (1 - (1 - FAR_SCALE) * distance)
+        factor = 1 - (1 - FAR_SCALE) * distance
+        return abs(float(self._base_scale[0])) * factor, abs(float(self._base_scale[1])) * factor
 
     def next_z(self) -> float:
         """
