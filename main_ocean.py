@@ -7,24 +7,21 @@ import OpenGL.GL as gl
 
 from engine.clock import FixedStepClock
 from engine.drawing import Drawing
-from engine.photos import PhotoWatcher, list_photos, scan_photo_file
+from engine.photos import PhotoWatcher
 from engine.renderer import Renderer
 from engine.shaders import ShaderProgram, compile_program
 from engine.simplescanner import SimpleScanner
+from main_server import FISH_LIMIT, PHOTOS_DIR, SERVER_PORT, STATE_FILE, load_fish_from_files
 from ocean import IMAGES_DIR
 from ocean.drawingfish import FISH_TRANSFORM, DrawingFish, prevent_depth_crossings
 from ocean.drawingseaweed import SEAWEED_TRANSFORM, DrawingSeaweed
 from ocean.drawingstatic import DrawingStatic
-from ocean.roster import FishRoster
+from ocean.roster import FishRoster, painted_extent
 from remote.server import RemoteServer, create_app, lan_address
 
-PHOTOS_DIR = Path("photos")
-STATE_FILE = PHOTOS_DIR / "tank.json"  # The fish cap and the disabled photos, kept across restarts
-SERVER_PORT = 8080  # Remote control page, opened from a phone on the same network
 WINDOW_SIZE = (800, 600)
 BACKGROUND_SCALE = (3.6, 2.0, 1.0)  # Background sprites cover this much of the world, centred on the origin
 TICK_SECONDS = 1 / 60  # Animation step, 60 times per second
-FISH_LIMIT = 10  # Default cap on fish in the tank; the remote control can change it
 
 
 class Resources:
@@ -184,39 +181,6 @@ class Scene:
         self.drawings[:] = [d for d in self.drawings if d not in dead]
         for fish in dead:
             self.resources.release_texture(fish.texid)
-
-
-def painted_extent(scanned_fish: np.ndarray) -> tuple[float, float]:
-    """
-    Smallest box centred on the canvas that contains a scan's opaque pixels, as fractions of
-    the canvas per axis. The scanner keeps the drawing wherever it sits on the page, so the
-    box reaches out to the farthest painted pixel on each axis rather than hugging the paint.
-    :param scanned_fish: RGBA scan
-    :return: (width fraction, height fraction), 1.0 when nothing is opaque
-    """
-    rows, cols = np.nonzero(scanned_fish[..., 3])
-    if rows.size == 0:
-        return (1.0, 1.0)
-    height, width = scanned_fish.shape[:2]
-    reach_x = max(0.5 - cols.min() / width, (cols.max() + 1) / width - 0.5)
-    reach_y = max(0.5 - rows.min() / height, (rows.max() + 1) / height - 0.5)
-    return (min(2 * reach_x, 1.0), min(2 * reach_y, 1.0))
-
-
-def load_fish_from_files(scanner: SimpleScanner, scanned_fish_queue: Queue) -> int:
-    """
-    Scan every photo already in the photos folder
-    :param scanner: Object of scanner to process photos
-    :param scanned_fish_queue: Queue of (path, RGBA scan) the animation loop turns into fish sprites
-    :return: Number of fish found
-    """
-    found = 0
-    for path in list_photos(PHOTOS_DIR):
-        scanned_fish = scan_photo_file(path, scanner)
-        if scanned_fish is not None:
-            scanned_fish_queue.put((path, scanned_fish))
-            found += 1
-    return found
 
 
 def step(renderer: Renderer, scene: Scene, scanned_fish_queue: Queue, roster: FishRoster) -> None:

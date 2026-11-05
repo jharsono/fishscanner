@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from engine.photos import PhotoWatcher
 from engine.simplescanner import SimpleScanner
+from ocean import IMAGES_DIR
 from ocean.roster import MAX_CAP, MIN_CAP, FishRoster
 from remote.server import RemoteServer, create_app, lan_address
 from tests.scanner_fixtures import EXAMPLES, PHOTOS
@@ -59,19 +60,24 @@ def test_the_page_is_served(client):
     assert "<title>FishScanner</title>" in response.text
 
 
-def test_the_fish_list_is_newest_first_with_the_cap_and_its_range(client):
+def test_the_fish_list_is_newest_first_with_painted_extents_the_cap_and_its_range(client):
+    extent = [0.75, pytest.approx(2 / 3)]  # The fixture paints columns 100-299 of 800 and rows 100-199 of 600
     assert client.get("/api/fish").json() == {
         "cap": 10,
         "min_cap": MIN_CAP,
         "max_cap": MAX_CAP,
-        "fish": [{"name": "b.jpg", "enabled": True}, {"name": "a.jpg", "enabled": True}],
+        "fish": [
+            {"name": "b.jpg", "enabled": True, "extent": extent},
+            {"name": "a.jpg", "enabled": True, "extent": extent},
+        ],
     }
 
 
 def test_disabling_and_enabling_a_fish(client, roster):
     response = client.put("/api/fish/a.jpg", json={"enabled": False})
     assert response.status_code == 200
-    assert response.json()["fish"][1] == {"name": "a.jpg", "enabled": False}
+    fish = response.json()["fish"][1]
+    assert fish["name"] == "a.jpg" and fish["enabled"] is False
     assert roster.enabled() == ["b.jpg"]
     assert client.put("/api/fish/a.jpg", json={"enabled": True}).status_code == 200
     assert roster.enabled() == ["b.jpg", "a.jpg"]
@@ -80,6 +86,7 @@ def test_disabling_and_enabling_a_fish(client, roster):
 def test_an_unknown_fish_is_not_found(client):
     assert client.put("/api/fish/nope.jpg", json={"enabled": False}).status_code == 404
     assert client.get("/api/fish/nope.jpg/thumbnail").status_code == 404
+    assert client.get("/api/fish/nope.jpg/image").status_code == 404
 
 
 def test_changing_the_cap(client, roster):
@@ -100,6 +107,21 @@ def test_a_thumbnail_is_a_png(client):
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/png"
     assert response.content.startswith(b"\x89PNG")
+
+
+def test_a_fish_image_is_the_rosters_webp(client, roster):
+    response = client.get("/api/fish/a.jpg/image")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/webp"
+    assert response.headers["cache-control"] == "max-age=86400"  # A photo is registered once, so it never changes
+    assert response.content == roster.image("a.jpg")
+
+
+@pytest.mark.parametrize("name", ["bubble.png", "scene2.jpg", "scene3.webp"])
+def test_the_scene_images_are_served(client, name: str):
+    response = client.get(f"/images/{name}")
+    assert response.status_code == 200
+    assert response.content == (IMAGES_DIR / name).read_bytes()
 
 
 def test_an_uploaded_photo_is_saved_whole_under_a_new_name(client, photos):
